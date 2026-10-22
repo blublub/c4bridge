@@ -681,6 +681,8 @@ function renderConfigTab() {
               </optgroup>
             </select>
             <span class="hint">größeres Modell = bessere Erkennung · Wechsel wirkt nach „Speichern“ ab dem nächsten Satz</span></div>
+            <label class="fl">Whisper auf der Grafikkarte</label>
+            <div class="ctr" id="pkg-whisper"><span class="hint">…</span></div>
             <label class="fl cpuonly" for="v-sttthreads">CPU-Kerne</label>
             <div class="ctr cpuonly"><input type="number" id="v-sttthreads" min="1" max="32" style="width:64px">
               <span class="hint">Threads für die Erkennung auf der CPU (Standard 4; 8–12 deutlich schneller, darüber kaum noch)</span></div>
@@ -762,6 +764,8 @@ function renderConfigTab() {
               <option value="qwen3">GPU · Qwen3-TTS (eigener Dienst, ~1,4 GB)</option>
             </select>
               <span class="hint">fällt das Modell aus, spricht Piper</span></div>
+            <label class="fl">Qwen3-TTS laden</label>
+            <div class="ctr" id="pkg-qwen"><span class="hint">…</span></div>
           </div>
           <div class="frm" id="t-pocket" hidden>
             <label class="fl" for="t-pvoice">Pocket-Stimme</label>
@@ -1003,6 +1007,7 @@ async function loadVoice() {
       $('#a-llmka').value = al.keep_alive_min ?? 60; $('#a-llmctx').value = al.num_ctx ?? 0;
       loadAssistState();
       loadPrompts(c);
+      pkgLoad();
       fillMicRows(c);
     }
   } catch (e) { /* noch keine Config */ }
@@ -1159,6 +1164,38 @@ async function vLang(l) {
   try { await put('/api/voice/config', { lang: l }); } catch (e) { alert(e.message); return; }
   promptDefaults = null;
   await loadVoice();
+}
+// GPU-Pakete (Whisper Vulkan, Qwen3-TTS): Stand anzeigen, laden, Fortschritt nachfragen; nach Erfolg stellt die
+// Bridge selbst um (gpu_packages.py / _pkg_done) → Formular neu laden
+let pkgTimer = null;
+async function pkgLoad() {
+  let st; try { st = await api('/api/voice/packages'); } catch { return; }
+  const lang = $('#v-lang') ? $('#v-lang').value : 'de';
+  const box = (id, p, ready, label, size, variant) => {
+    const el = $('#pkg-' + id); if (!el) return;
+    if (!st.supported) { el.innerHTML = '<span class="hint">nur unter Windows x64</span>'; return; }
+    if (p.running) {
+      el.innerHTML = `<span class="hint">⏳ ${esc(p.step || '')}${p.percent != null ? ` – ${p.percent} % (${p.done_mb} / ${p.total_mb} MB)` : ''}</span>`;
+      return;
+    }
+    const err = p.error ? `<span class="hint" style="color:var(--err)">${esc(p.error)}</span> ` : '';
+    el.innerHTML = ready
+      ? `<span class="hint" style="color:var(--ok)">✓ installiert</span>`
+      : `${err}<button class="act" onclick="pkgInstall('${id}','${variant}')">${label} herunterladen</button> <span class="hint">${size}</span>`;
+  };
+  const wv = lang === 'en' ? 'multi' : 'de';
+  box('whisper', st.whisper, st.whisper.exe && st.whisper.models[wv], lang === 'en' ? 'Whisper mehrsprachig' : 'Whisper deutsch',
+      '~0,9 GB · Vulkan, AMD/NVIDIA/Intel · deutlich bessere Erkennung als auf der CPU', wv);
+  box('qwen', st.qwen, st.qwen.ok, 'Qwen3-TTS 0.6B', '~1,7 GB + ~340 MB Python-Pakete · natürlichere Stimme als Piper', '');
+  const running = st.whisper.running || st.qwen.running;
+  clearTimeout(pkgTimer);
+  if (running) pkgTimer = setTimeout(pkgLoad, 1500);
+  else if (pkgTimer !== null && (st.whisper.step === 'fertig' || st.qwen.step === 'fertig')) { pkgTimer = null; loadVoice(); }
+}
+async function pkgInstall(name, variant) {
+  try { await post('/api/voice/packages/' + name, { variant }); } catch (e) { alert(e.message); return; }
+  pkgTimer = 0;
+  pkgLoad();
 }
 async function loadPrompts(c) {
   try { promptDefaults = promptDefaults || await api('/api/voice/prompts/defaults'); } catch { return; }

@@ -13,6 +13,8 @@ data/*
 data/tts/*
 !data/tts/qwen_ref_abenteuer.*
 !data/tts/qwen_ref_ruhig.*
+!data/tts/qwen_ref_en_adventure.*
+!data/tts/qwen_ref_en_calm.*
 
 # Binaries and models (downloaded separately)
 bin/

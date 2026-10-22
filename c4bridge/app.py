@@ -2049,6 +2049,72 @@ async def voice_status():
             "lines": _voice["lines"][-40:], "service": svc}
 
 
+def _voice_lang_defaults(cur: dict) -> None:
+    """Zur Sprache des Assistenten passende Bausteine wählen – nur was zur ANDEREN Sprache gehört, wird ersetzt
+    (eigene Wahl in der richtigen Sprache bleibt): Erkennung, Qwen3-Stimmvorlage, Piper-Stimme."""
+    from . import gpu_packages
+    en = cur.get("lang") == "en"
+    stt = cur.setdefault("stt", {})
+    if en and stt.get("model") == "whisper-vulkan" and gpu_packages.whisper_installed()["models"].get("multi"):
+        stt["model"] = "whisper-vulkan-multi"            # deutsches Whisper versteht kein Englisch
+    if en and stt.get("model") == "large-v3-turbo-german":
+        stt["model"] = "large-v3-turbo"
+    t = cur.setdefault("tts", {})
+    q = t.setdefault("qwen", {})
+    ref = str(q.get("ref") or "")
+    if ref and en != ref.startswith("qwen_ref_en_"):
+        want = ("qwen_ref_en_adventure.wav", "qwen_ref_en_calm.wav") if en else ("qwen_ref_abenteuer.wav", "qwen_ref_ruhig.wav")
+        hit = next((w for w in want if (TTS_DIR / w).is_file()), None)
+        if hit:
+            q["ref"], q["ref_text"] = hit, ""             # Text kommt dann aus <vorlage>.txt
+    voice = str(t.get("voice") or "")
+    if en != voice.startswith("en_"):
+        inst = [x["voice"] for x in _tts_installed()]
+        hit = next((v for v in inst if v.startswith("en_" if en else "de_")), None)
+        if hit or voice not in inst:           # sonst Standardstimme der Sprache (Admin bietet sie zum Laden an)
+            t["voice"] = hit or ("en_US-lessac-medium" if en else "de_DE-thorsten-medium")
+
+
+def _pkg_done(name: str, variant: str) -> None:
+    """Nach einem GPU-Download gleich nutzen: Erkennung bzw. Sprachausgabe umstellen (wer lädt, will es verwenden)."""
+    from . import gpu_packages
+    cur = _voice_cfg()
+    if name == "whisper":
+        cur.setdefault("stt", {})["model"] = gpu_packages.STT_ENGINE[variant]
+    else:
+        t = cur.setdefault("tts", {})
+        t["engine"] = "qwen3"
+        q = t.setdefault("qwen", {})
+        q["model"], q["dir"] = "model-base-small", ""
+        q.setdefault("ref", "")
+        if not q["ref"]:
+            q["ref"] = "qwen_ref_en_adventure.wav" if cur.get("lang") == "en" else "qwen_ref_ruhig.wav"
+            q["ref_text"] = ""
+        _voice_lang_defaults(cur)
+    _voice_cfg_save(cur)
+    logbus.info("voice", f"GPU-Paket {name} aktiv: {'Erkennung ' + cur['stt']['model'] if name == 'whisper' else 'Sprachausgabe Qwen3-TTS'}")
+
+
+@app.get("/api/voice/packages")
+async def voice_packages():
+    from . import gpu_packages
+    return gpu_packages.status()
+
+
+@app.post("/api/voice/packages/{name}")
+async def voice_package_install(name: str, body: dict | None = None):
+    """Whisper (Vulkan) bzw. Qwen3-TTS im Hintergrund laden; Fortschritt über GET /api/voice/packages."""
+    from . import gpu_packages
+    variant = str((body or {}).get("variant") or ("multi" if _voice_cfg().get("lang") == "en" else "de"))
+    try:
+        gpu_packages.start(name, variant, on_done=_pkg_done)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    return gpu_packages.status()
+
+
 @app.get("/api/voice/config")
 async def get_voice_config():
     c = _voice_cfg()
@@ -2091,6 +2157,7 @@ async def put_voice_config(body: dict):
     if lang:
         cur["lang"] = lang
         cur.setdefault("stt", {})["language"] = lang
+        _voice_lang_defaults(cur)
     if "enabled" in body:
         cur["enabled"] = bool(body["enabled"])
     if "dry_run" in body:

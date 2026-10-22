@@ -280,6 +280,12 @@
     ['Interner Port', 'Internal port'], ['Varianten (Beam)', 'Variants (beam)'], ['eigene Anweisungen', 'custom instructions'],
     ['konto@example.de', 'account@example.com'],
     ['Sprache des Assistenten', 'Assistant language'], ['Empfindlichkeit', 'Sensitivity'],
+    ['Whisper auf der Grafikkarte', 'Whisper on the GPU'], ['Qwen3-TTS laden', 'Download Qwen3-TTS'],
+    ['nur unter Windows x64', 'Windows x64 only'], ['✓ installiert', '✓ installed'],
+    ['Whisper mehrsprachig herunterladen', 'Download Whisper multilingual'], ['Whisper deutsch herunterladen', 'Download Whisper German'],
+    ['Qwen3-TTS 0.6B herunterladen', 'Download Qwen3-TTS 0.6B'],
+    ['~0,9 GB · Vulkan, AMD/NVIDIA/Intel · deutlich bessere Erkennung als auf der CPU', '~0.9 GB · Vulkan, AMD/NVIDIA/Intel · much better recognition than on the CPU'],
+    ['~1,7 GB + ~340 MB Python-Pakete · natürlichere Stimme als Piper', '~1.7 GB + ~340 MB Python packages · more natural voice than Piper'],
     ['Erkennung, Antworten, Kurzbefehle und Anweisungen an die KI – die Anweisungen sind je Sprache getrennt gespeichert · speichert sofort',
       'Recognition, answers, short commands and instructions for the AI – instructions are stored separately per language · saves immediately'],
     // Wetter (WMO-Texte aus assist.py – der Server liefert Deutsch, weil die Sprachausgabe sie vorliest)
@@ -333,6 +339,10 @@
     [/^Raum „(.+)“: Player „(.+)“ \((.+)\) nur über den Namen zugeordnet – in Control4 gehört kein erreichbarer Player-Treiber zu diesem Raum\.$/,
       'Room “$1”: player “$2” ($3) matched by name only – no reachable player driver belongs to this room in Control4.'],
     [/^Player „(.+)“ \((.+)\) gehört zu keinem Raum\.$/, 'Player “$1” ($2) does not belong to any room.'],
+    // GPU-Pakete (Fortschritt)
+    [/^⏳ (.+?)( – \d+ % \(\d+ \/ \d+ MB\))?$/, (m, a, b) => '⏳ ' + ({ 'Start': 'starting', 'Python-Umgebung anlegen': 'creating Python environment',
+      'Python-Pakete installieren (~340 MB)': 'installing Python packages (~340 MB)' }[a] || a.replace(' – entpacken', ' – unpacking')
+      .replace(/^Modell /, 'model ').replace('(Modell)', '(model)')) + (b || '')],
     // Mikrofon-Test
     [/^erkannt \((.+)\) – jetzt sprechen$/, 'detected ($1) – speak now'], [/^Gesprochen \((.+) s\)$/, 'Spoken ($1 s)'],
     [/^✓ Mikrofon zugeordnet: (.+)$/, '✓ Microphone assigned: $1'], [/^(\d+) Audio-Pakete gesendet$/, '$1 audio packets sent'],

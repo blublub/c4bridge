@@ -149,14 +149,14 @@ You talk to c4voice the way you talk at home:
 - **Everyday phrases instead of device names**: *"a bit brighter"*, *"too dark"*, *"blinds down"*, *"louder"*.
   The microphone's room is the default.
 
-**Recommended:** Whisper on the GPU (much better recognition than the CPU models) and Qwen3-TTS (much more natural
-than Piper). Neither is set up by the admin. Both are described in the README under
-"Recommended GPU components". The admin itself downloads:
+**Recommended:** Whisper on the GPU (much better recognition than the CPU models) and Qwen3-TTS (much more natural than
+Piper). Both are one click in the admin (see step 2). The admin also downloads:
 - Piper voices
 - the wake word models
 - the CPU Whisper models
 
-None of the components needs a Hugging Face login.
+No component needs a Hugging Face login. With the assistant set to English, the matching English models and voices
+are picked automatically.
 
 1. **Install Ollama** from [ollama.com](https://ollama.com) and pull a model:
 
@@ -176,17 +176,17 @@ None of the components needs a Hugging Face login.
      - Prompts: the house prompt and the example sentences. `tools/prompts/de/` has the tested German template,
        `tools/prompts/en/` an English one.
    - **Speech recognition**:
-     - **Recommended**: "GPU · Whisper turbo German (Vulkan)", or "multilingual" for English. It needs
-       `bin/whisper-vulkan/whisper-server.exe` and a GGML model in `data/models/` (see the README).
+     - **Assistant language** (German or English). Set it first: the downloads and voices follow it.
+     - **Recommended**: "Whisper on the GPU" → **Download** (about 0.9 GB, Windows x64, Vulkan).
+       The bridge switches recognition over by itself when the download is done.
      - Without a GPU: a CPU Whisper model. `base` is fast, `small` is more accurate. It downloads on first use to `data/models`.
-     - The recognition language (`de`, `en`) is set here too.
    - **Wake word**: click "Load models" (about 60 MB, once). The default is `hey_jarvis`.
    - **Speech output**:
-     - **Qwen3-TTS** (GPU, **recommended**, much more natural):
-       - Needs the exported engine in `bin/tts/qwen3/` (see the README).
-       - Pick a voice from `data/tts/qwen_ref_*.wav` and the model (0.6B recommended).
-     - **Piper** (CPU): download a voice (for example `de_DE-thorsten-medium`, about 60 MB) and click "Listen".
-       Piper is also the fallback when Qwen3 is not available.
+     - **Qwen3-TTS** (GPU, **recommended**, much more natural): "Download Qwen3-TTS" (about 1.4 GB plus 340 MB of Python
+       packages). The bridge switches over by itself, with a voice in the assistant language. You can change the voice
+       under Speech output.
+     - **Piper** (CPU): download a voice (for example `en_US-lessac-medium` or `de_DE-thorsten-medium`, about 60 MB) and
+       click "Listen". Piper is also the fallback when Qwen3 is not available.
    - Leave **dry_run** on until the commands look right. In dry-run mode nothing in the house is switched.
    - Enable the service. The bridge starts `python -m c4bridge.voice` (port 8090, localhost only, protected by a token) and watches it.
 3. **Microphones**: you have two options.

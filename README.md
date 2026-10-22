@@ -158,10 +158,10 @@ See `service/README.md` (German) for details.
    - For gemma: `LLAMA_ARG_SWA_FULL=1`. This avoids a slow context-checkpoint restore on every request.
 2. Admin → **Voice control**:
    - **LLM**: the Ollama URL and model. Context 12288 is plenty.
-   - **Speech recognition**: a Whisper model. We recommend Whisper on the GPU (see below). CPU models download
-     automatically on first use to `data/models`.
+   - **Speech recognition**: Whisper on the GPU, one click on "Download" (recommended), or a CPU model (downloads
+     automatically on first use to `data/models`).
    - **Wake word**: "Load models" (about 60 MB, once).
-   - **Speech output**: Qwen3-TTS (recommended, see below), or download a Piper voice with one click.
+   - **Speech output**: Qwen3-TTS, one click on "Download" (recommended), or a Piper voice.
    - Keep **dry_run** on until the commands look right, then enable the service.
 3. Add notes and alias names to your devices in Admin → **Devices**. This is the biggest factor for good results.
 4. Open the microphone test (`/voicetest`), or connect your own microphone device (`tools/feed_voice.py` is an example).
@@ -170,45 +170,45 @@ See `service/README.md` (German) for details.
 The house prompt and its examples can be edited in Admin → Voice control → LLM. `tools/prompts/de/` contains the
 benchmarked German prompt (about 6 KB). `tools/prompts/en/` contains an English version.
 
-### What the admin downloads for you, and what you set up yourself
+### What the admin downloads for you
 
 | Component | How |
 |---|---|
-| Piper voices | **Admin**, one click (Hugging Face `rhasspy/piper-voices`) |
+| **Whisper on the GPU (Vulkan)** | **Admin** → Voice control → Speech recognition → "Download". It downloads the program and the model for the assistant language (multilingual or German), about 0.9 GB. Then it switches recognition over |
+| **Qwen3-TTS 0.6B** | **Admin** → Voice control → Speech output → "Download". It downloads the engine and the model (about 1.4 GB) and creates its own Python environment (about 340 MB, no PyTorch). Then it switches speech output over, with a voice in the assistant language |
+| Piper voices (German and English) | **Admin**, one click (Hugging Face `rhasspy/piper-voices`) |
 | Wake word models | **Admin**, "Load models" (openWakeWord) |
 | Whisper CPU models (faster-whisper) | **Automatic** on first use |
 | MediaMTX (camera live stream) | **Setup wizard** (pinned version, SHA-256 checked) |
 | Ollama + LLM | Manual: install Ollama, then `ollama pull gemma4:12b` |
-| Whisper on the GPU (Vulkan) | Manual, see below |
-| Qwen3-TTS | Manual, see below |
 
-No component needs a Hugging Face login. All models used here are public: Qwen3-TTS, Whisper and Piper.
-Only *Kyutai Pocket TTS* (an experimental alternative, not covered here) is gated in its voice-cloning version.
+Every download is checked against a SHA-256 checksum:
+- **Our packages** (`whisper-vulkan-win-x64.zip`, `qwen3-engine-win-x64.zip`, `qwen3-tts-0.6b-base.zip`): from the
+  [GitHub release](https://github.com/blublub/c4bridge/releases), checked against its `SHA256SUMS.txt`.
+- **The Whisper models**: directly from Hugging Face, checked against checksums pinned in `c4bridge/gpu_packages.py`.
 
-### Recommended GPU components (not included in this repository)
+No component needs a Hugging Face login. The GPU packages are Windows x64 builds. They use Vulkan, so they run on
+AMD, NVIDIA and Intel graphics with the normal driver.
 
-**Whisper on the GPU (Vulkan)**: much better recognition than the CPU models, about 0.3 s per sentence.
-1. `bin/whisper-vulkan/whisper-server.exe`:
-   - Built from [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) with `-DGGML_VULKAN=ON`.
-   - The admin does **not** build it. We built it with w64devkit (GCC), CMake and the Vulkan headers.
-   - It only needs the normal graphics driver at runtime.
-2. Model in `data/models/`. Pick one:
-   - German, recommended for German: `whisper-turbo-german-ggml/ggml-large-v3-turbo-german-q8_0.bin`
-     from [Pomni/whisper-large-v3-turbo-german-ggml-allquants](https://huggingface.co/Pomni/whisper-large-v3-turbo-german-ggml-allquants).
-   - Multilingual, for English or mixed: `whisper-turbo-ggml/ggml-large-v3-turbo-q8_0.bin`
-     from [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp).
-3. Admin → Voice control → Speech recognition: choose "GPU · Whisper turbo German (Vulkan)" or "… multilingual (Vulkan)".
+**Recommended:**
+- **Whisper on the GPU**: much better recognition than the CPU models, about 0.3 s per sentence.
+- **Qwen3-TTS**: much more natural speech than Piper, about 0.8 GB VRAM.
 
-**Qwen3-TTS**: much more natural speech than Piper (about 0.8 GB VRAM with the 0.6B model).
-1. Download the model from [Qwen on Hugging Face](https://huggingface.co/Qwen). It is public (Apache-2.0):
-   `Qwen3-TTS-12Hz-0.6B-Base`, or `-1.7B-Base`.
-2. Export it to GGUF/ONNX with the scripts of [HaujetZhao/Qwen3-TTS-GGUF](https://github.com/HaujetZhao) into
-   `bin/tts/qwen3/model-base-small/` (0.6B) or `model-base/` (1.7B).
-   - The export needs PyTorch (about 10 GB), once.
-   - The admin does **not** do this step.
-3. Voices: `data/tts/qwen_ref_<name>.wav` plus a `.txt` file with the transcript. Two samples are included.
-   - Keep reference clips at 5–10 s. Longer clips make short sentences come out empty.
-   - You can generate new voices with `tools/tts_design_voices.py` (Qwen3-TTS VoiceDesign).
+**Qwen3-TTS voices** are clips in `data/tts/qwen_ref_<name>.wav`, each with a `.txt` file holding the transcript. Four are
+included, all generated with Qwen3-TTS VoiceDesign:
+- German: `abenteuer`, `ruhig`
+- English: `en_adventure` (British), `en_calm` (American)
+
+Keep reference clips at 5–10 s; longer clips make short sentences come out empty. `tools/tts_design_voices.py` creates new
+voices.
+
+**Building the packages yourself:**
+- `tools/make_release.py` packs them from a working installation.
+- Whisper: built from [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) with `-DGGML_VULKAN=ON`, statically
+  linked (there is no official Vulkan build for Windows).
+- Qwen3-TTS: exported from [Qwen/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base) with the
+  scripts of [HaujetZhao/Qwen3-TTS-GGUF](https://github.com/HaujetZhao). The export needs PyTorch, once.
+- `C4BRIDGE_PACKAGES_URL` points the admin to another download location.
 
 ## Languages
 
@@ -234,8 +234,8 @@ German and English are both supported, in the UI and in the voice assistant.
 - Instructions are stored per language. Your own German prompt stays when you switch to English and back.
 
 **Tips for English:**
-- Use the multilingual Whisper model: "GPU · Whisper turbo multilingual (Vulkan)", or a CPU model.
-- Download an English Piper voice, or use Qwen3-TTS.
+- With the assistant set to English, the admin's download buttons fetch the multilingual Whisper model and pick an
+  English Qwen3 voice and English Piper voice automatically.
 - Name your devices and rooms in English in Control4. The bridge checks device names against what was said, so
   *"floor lamp"* does not match a device called *"Stehlampe"*.
 
