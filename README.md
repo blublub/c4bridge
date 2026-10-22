@@ -1,20 +1,41 @@
 # c4bridge
 
-A local web bridge for **Control4** home automation: a fast browser UI for the PC, an admin console, and an
-optional **local voice assistant** (wake word → Whisper → LLM via Ollama → actions → speech output).
+> [!WARNING]
+> **Experimental, work in progress. Use at your own risk.**
+> This is a hobby project, not a tested product. How well it works depends on many variables: your Control4
+> project, your network, and, for the voice assistant, your **GPU, the model you use and its size**. Results on
+> other systems will differ from ours.
+
+The goal of this project is a **local bridge for Control4** home automation:
+- a modern web UI for the PC,
+- an admin console,
+- an optional **local voice assistant** (wake word → Whisper → LLM via Ollama → actions → speech output).
+
 Everything runs inside your home network. No cloud services are needed except the Control4 account login.
 
-**What makes the voice assistant different: you talk to it the way you talk at home.**
+**The voice assistant is designed so that you can talk to it the way you talk at home.**
 - **Natural speaking, no pause.** Say *"Hey Jarvis, turn the lights on"* in one breath. You don't wait for a beep
   after the wake word: the bridge keeps a rolling audio buffer, so the start of your command is never lost.
 - **No exact device names needed.** *"Make it a bit brighter"*, *"lights on"*, *"too dark"*, *"close everything"*,
-  *"make it cosy"* just work:
+  *"make it cosy"* are understood without naming a device (with a capable model, see below; expect occasional
+  mistakes):
   - The room you are in is the default.
   - The LLM picks the matching devices itself.
   - Misheard names are matched to the closest device.
   - If it really is ambiguous, it asks back (*"Which office do you mean?"*).
 
-> Unofficial hobby project. Not affiliated with or endorsed by Snap One / Control4. Use at your own risk.
+**What the voice assistant needs:**
+- **What we use and recommend:**
+  - **gemma4:12b** via Ollama.
+  - A GPU with **at least 16 GB VRAM** (Vulkan), running Whisper and Qwen3-TTS on the GPU as well.
+- **What we measured on our system** (RX 6900 XT, dry-run dialog test): 75 of 75 German and 26 of 27 English test
+  sentences correct, about 0.5–1 s per command.
+- **Weaker setups work, but worse:**
+  - Smaller models misunderstand or invent actions more often.
+  - Less VRAM or a CPU-only setup makes every answer noticeably slower.
+- **Keep dry-run on** (commands are only simulated) until it behaves well in your home.
+
+> Unofficial project. Not affiliated with or endorsed by Snap One / Control4.
 > UI and voice assistant in German and English (see [Languages](#languages)).
 
 ![Home screen](docs/screenshots/home.png)
