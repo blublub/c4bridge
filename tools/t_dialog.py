@@ -79,6 +79,8 @@ DIALOGS = [
     (AS, ["Mach das Licht aus", "Danke"]), (AS, ["Spiel was von Adele", "Mach das Licht aus", "Lauter"]),
     # M. Auskunft
     (AS, ["Wie wird das Wetter morgen?"]), (AS, ["Nenne mir die Alben von Avril Lavigne"]),
+    # N. Farblicht
+    (EK, ["Mach die Küchenzeile warmweiß"]), (EK, ["Mach das Licht in der Küche blau"]),
 ]
 
 DIALOGS_ALT = [
@@ -199,6 +201,8 @@ EXPECT = {
     62: [E(MUSIK, r"Adele"), E({"light_set"}, r" aus"), E({"volume_adjust"}, None)],
     # M. Auskunft
     63: [E({"weather"}, None)], 64: [E({"music_albums"}, r"Alben|Qobuz")],
+    # N. Farblicht
+    65: [E({"light_color"}, r"warmwei")], 66: [E({"light_color"}, r"blau")],
 }
 
 

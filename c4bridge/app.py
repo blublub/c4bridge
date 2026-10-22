@@ -22,6 +22,7 @@ from starlette.requests import HTTPConnection
 from . import assist as assist_mod
 from . import auth as auth_mod
 from . import config as config_mod
+from . import lightcolor
 from . import logbus
 from .connection import Connection
 from .inventory import Inventory
@@ -1243,6 +1244,51 @@ async def set_level(device_id: int, body: LevelBody):
     await conn.post(f"/api/v1/items/{device_id}/commands", "SET_LEVEL", {"LEVEL": body.level})
     logbus.info("action", f"Light '{d['name']}' ({d['room']}) -> {body.level}")
     return {"ok": True, "device": d["name"], "level": body.level}
+
+
+async def _light_color_info(device_id: int):
+    d = inv.devices.get(device_id)
+    if not d or d["type"] != "light":
+        raise HTTPException(404, "light not found")
+    vals = {v.get("varName"): v.get("value") for v in await conn.get(f"/api/v1/items/{device_id}/variables") or []}
+    if lightcolor.parse_state(vals) is None:
+        raise HTTPException(400, "light has no colour")
+    return d, vals
+
+
+@app.get("/api/devices/{device_id}/color")
+async def light_color(device_id: int):
+    """Farbleuchte: aktueller Zustand, Kelvin-Bereich und die Presets aus der Control4-App."""
+    d, vals = await _light_color_info(device_id)
+    plist, lo, hi = lightcolor.presets(vals)
+    return {"name": d.get("note") or d["name"], "room": d["room"], "state": lightcolor.parse_state(vals), "cct_min": lo, "cct_max": hi, "presets": plist}
+
+
+@app.post("/api/devices/{device_id}/color")
+async def set_light_color(device_id: int, body: dict):
+    """body: {kelvin} | {hue, sat} | {x, y} | {preset: id} | {name: "warmweiß" / "blau" / Preset-Name}."""
+    d, vals = await _light_color_info(device_id)
+    plist, lo, hi = lightcolor.presets(vals)
+    b = body or {}
+    if b.get("kelvin") is not None:
+        p = lightcolor.params_kelvin(int(b["kelvin"]), lo, hi)
+    elif b.get("hue") is not None:
+        p = lightcolor.params_xy(*lightcolor.hs_to_xy(float(b["hue"]), float(b.get("sat", 100))))
+    elif b.get("x") is not None and b.get("y") is not None:
+        p = lightcolor.params_xy(float(b["x"]), float(b["y"]))
+    elif b.get("preset") is not None:
+        hit = next((x for x in plist if x["id"] == b["preset"]), None)
+        if not hit:
+            raise HTTPException(404, "preset not found")
+        p = lightcolor.preset_params(hit, lo, hi)
+    else:
+        p = lightcolor.resolve(str(b.get("name") or ""), plist, lo, hi)
+        if not p:
+            raise HTTPException(400, "unknown colour")
+    await conn.post(f"/api/v1/items/{device_id}/commands", "SET_COLOR_TARGET", p)
+    cache.invalidate("lights")
+    logbus.info("action", f"Light '{d['name']}' ({d['room']}) colour -> {p}")
+    return {"ok": True, "device": d["name"], "params": p}
 
 
 @app.get("/api/media/search")
@@ -3010,19 +3056,20 @@ async def device_state(device_id: int):
 @app.get("/api/devices/state")
 async def devices_state(room_id: Optional[int] = None):
     """Live on/off+brightness for many lights in ONE batched Director call."""
-    r = await cache.get("lights", lambda: conn.get("/api/v1/items/variables?varnames=LIGHT_STATE,Brightness Percent"), room=room_id)
+    names = ",".join(("LIGHT_STATE", "Brightness Percent") + lightcolor.STATE_VARS)
+    r = await cache.get("lights", lambda: conn.get("/api/v1/items/variables?varnames=" + names), room=room_id)
     by_id = {}
     for row in r if isinstance(r, list) else []:
-        e = by_id.setdefault(row.get("id"), {})
-        if row.get("varName") == "LIGHT_STATE":
-            e["on"] = bool(row.get("value"))
-        elif row.get("varName") == "Brightness Percent":
-            e["level"] = row.get("value")
+        by_id.setdefault(row.get("id"), {})[row.get("varName")] = row.get("value")
     out = []
     for d in inv.list_devices(room_id=room_id, dtype="light", enabled_only=True):
         e = by_id.get(d["id"], {})
-        out.append({"id": d["id"], "name": d["name"], "type": "light",
-                    "on": e.get("on", False), "level": e.get("level")})
+        row = {"id": d["id"], "name": d["name"], "type": "light",
+               "on": bool(e.get("LIGHT_STATE", False)), "level": e.get("Brightness Percent")}
+        col = lightcolor.parse_state(e)
+        if col:
+            row["color"] = col
+        out.append(row)
     return out
 
 
@@ -3106,6 +3153,28 @@ async def room_shuffle(room_id: int, body: ShuffleBody):
     else:
         raise HTTPException(409, "Zufall ist für diese Quelle noch nicht verfügbar")
     logbus.info("action", f"Zufall {'an' if body.on else 'aus'} in {inv.rooms[room_id]['name']}")
+    return {"ok": True}
+
+
+@app.post("/api/rooms/{room_id}/seek")
+async def room_seek(room_id: int, body: dict):
+    """Im laufenden Titel springen (Sekunden): BluOS-Player direkt, KODI über JSON-RPC."""
+    try:
+        secs = int((body or {}).get("secs"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "secs must be a number")
+    if room_id not in inv.rooms:
+        raise HTTPException(404, "room not found")
+    b = bluos.room(room_id)
+    if b:
+        await _bluos_call(bluos.seek(b["ip"], secs))
+    elif kid := await _room_kodi(room_id):
+        try:
+            await kodi.seek(kid, secs)
+        except KodiError as e:
+            raise HTTPException(409, str(e))
+    else:
+        raise HTTPException(409, "Springen ist für diese Quelle nicht verfügbar")
     return {"ok": True}
 
 

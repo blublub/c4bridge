@@ -51,6 +51,7 @@ WZ, AS, EK = "Wohnzimmer", "Arbeit Alex", "Esszimmer / Küche"
 ANY = None
 # (Sprecherraum, [(Satz, erwartete Werkzeuge oder None = nicht bewertet, set() = kein Werkzeug)])
 DIALOGS = [
+    (EK, [("Make the kitchen counter warm white", {"light_color"})]), (EK, [("Make the light in the Küche blue", {"light_color"})]),
     (WZ, [("Turn the lights on", {"light_set"})]), (WZ, [("Make it a bit brighter", {"light_adjust"})]),
     (WZ, [("Lights off", {"light_set"})]), (WZ, [("Make it cosy", {"light_adjust"})]),
     (WZ, [("Close the blinds", {"blind_action"})]), (WZ, [("Blinds up", {"blind_action"})]),

@@ -228,7 +228,7 @@ const X = (() => {
         const l = C4.light(d), lvl = l.on ? 0 : 100;
         return `<div class="gr ${l.on ? 'on' : ''}"><span class="gi">${ic(l.on ? 'light_on' : 'light_off', 18)}</span><span class="gn" onclick="X.lt(${d.id},${lvl})">${esc(C4.label(d))}</span>
           ${l.dimmable ? rng(l.level, `data-lvl="${d.id}"`) : ''}<small>${l.on ? (l.dimmable && l.level != null ? l.level + ' %' : t('on')) : t('off')}</small>
-          <button class="sw ${l.on ? 'on' : ''}" onclick="X.lt(${d.id},${lvl})"></button></div>`;
+          ${C4.colorDot(d, 16)}<button class="sw ${l.on ? 'on' : ''}" onclick="X.lt(${d.id},${lvl})"></button></div>`;
       }
       const s = C4.sw(d);
       return `<div class="gr ${s.on ? 'on' : ''}"><span class="gi">${ic('power', 18)}</span><span class="gn" onclick="C4.switchToggle(${d.id})">${esc(C4.label(d))}</span>
@@ -351,7 +351,7 @@ const X = (() => {
     const d = C4.dev(f) || C4.camDev(f); if (!d) return '';
     if (isGrp(sz, d)) return wrap('grpt m-' + (sz.mode || 'auto'), grpTile(f, d, sz), '');
     if (d.type === 'light') {
-      const l = C4.light(d), icn = `<span class="ti">${ic(l.on ? 'light_on' : 'light_off', 28)}</span>`;
+      const l = C4.light(d), icn = `<span class="ti">${ic(l.on ? 'light_on' : 'light_off', 28)}</span>${C4.colorDot(d)}`;
       if (l.dimmable) return wrap('w2 slide' + (l.on ? ' on' : ''), icn + txt(l.on ? l.level + ' %' : t('off'), C4.label(d)) + rng(l.level, `data-lvl="${d.id}"`), `C4.toggleLight(${d.id})`);
       return wrap(l.on ? 'on' : '', icn + txt(l.on ? t('on') : t('off'), C4.label(d)), `C4.toggleLight(${d.id})`);
     }
@@ -486,7 +486,7 @@ const X = (() => {
     const lvl = l.on ? 0 : 100;
     return `<div class="c ${l.on ? 'on' : ''}"><span class="ci" onclick="X.lt(${d.id},${lvl})">${ic(l.on ? 'light_on' : 'light_off', 26)}</span>
       <span class="cx" onclick="X.lt(${d.id},${lvl})"><b>${esc(d.note || d.name)}</b><small>${l.on ? (l.dimmable && l.level != null ? l.level + ' %' : t('on')) : t('off')}</small></span>
-      <button class="sw ${l.on ? 'on' : ''}" onclick="X.lt(${d.id},${lvl})"></button>
+      ${C4.colorDot(d, 20)}<button class="sw ${l.on ? 'on' : ''}" onclick="X.lt(${d.id},${lvl})"></button>
       ${l.dimmable ? rng(l.level, `data-lvl="${d.id}"`) : ''}${other ? '' : favBtn(d.id)}</div>`;
   }
   function blindCard(d) {
@@ -736,8 +736,9 @@ const X = (() => {
     const art = C4.coverHtml(np.artist, np.album || np.title || np.source, 'cover', np.img);
     const srcs = [...(S.media.listen || []), ...(S.media.watch || [])];
     setTimeout(loadQueue, 0);
-    return `<div class="npv"><div class="art">${art}
-        <h2>${esc(np.title || np.source || t('no_source'))}</h2><p>${esc([np.artist, np.album, np.title ? np.source : t('line_in'), S.room.name].filter(Boolean).join(' · '))}</p>
+    if (npWx()) setTimeout(loadWx, 0);
+    return `<div class="npv${npWx() ? ' wx' : ''}"><div class="art">${art}
+        <h2>${esc(np.title || np.source || t('no_source'))}</h2><p>${esc([np.artist, np.album, np.title ? np.source : t('line_in'), S.room.name].filter(Boolean).join(' · '))}</p>${progHtml(np)}
         <div class="ctrl">${C4.mixButton(18)}<button onclick="C4.transport('SKIP_REV')">${ic('prev', 22)}</button>${C4.ppButtons('pp', 26)}
           <button onclick="C4.transport('SKIP_FWD')">${ic('next', 22)}</button>${C4.repeatButton(18)}</div>
         <div class="volrow"><button onclick="C4.mute(${!np.muted})">${ic(np.muted ? 'vol_mute' : 'volume', 22)}</button>
@@ -746,8 +747,11 @@ const X = (() => {
       <div><div class="sheet" style="min-height:0;margin-bottom:16px"><div class="sh-h"><h2>${t('queue')}</h2></div><div class="sh-b" id="qbox">${queueHtml()}</div></div>
       <div class="sheet" style="min-height:0"><div class="sh-h"><h2>${t('sources')}</h2></div><div class="sh-b"><div class="cards">${srcs.map(s =>
         `<div class="c ${S.rs.selected_device === s.id ? 'on' : ''} ${C4.bluDead(s.id) ? 'dis' : ''}" ${C4.bluDead(s.id) ? `title="${esc(t('blu_dead'))}"` : ''} onclick="X.srcGo(${s.id},'${(S.media.watch || []).includes(s) ? 'watch' : 'listen'}')">
-          <span class="ci">${C4.srcIcon(s, (S.media.watch || []).includes(s) ? 'tv' : 'music', 26)}</span><span class="cx"><b>${esc(s.name)}</b></span></div>`).join('')}</div></div></div></div></div>`;
+          <span class="ci">${C4.srcIcon(s, (S.media.watch || []).includes(s) ? 'tv' : 'music', 26)}</span><span class="cx"><b>${esc(s.name)}</b></span></div>`).join('')}</div></div></div></div>
+      ${npWx() ? `<div class="npvw" id="npvw">${wxHtml(12)}</div>` : ''}</div>`;
   }
+  // Große Player-Ansicht: rechts eine Wetterspalte, wenn genug Platz ist (wie in der Seitenleiste der Startseite)
+  const npWx = () => wxOn() && innerWidth >= 1500;
 
   let npKey = '';
   function refreshNp() {
@@ -809,10 +813,10 @@ const X = (() => {
   function progHtml(np) {
     const p = songPos(np);
     if (p == null) return '';
-    return `<div class="prog"><span>${mmss(p)}</span><i><b style="width:${(100 * p / np.total).toFixed(1)}%"></b></i><span>${mmss(np.total)}</span></div>`;
+    return `<div class="prog" onclick="X.seek(event,this.querySelector('i'))"><span>${mmss(p)}</span><i title="${t('seek')}"><b style="width:${(100 * p / np.total).toFixed(1)}%"></b></i><span>${mmss(np.total)}</span></div>`;
   }
   setInterval(() => {
-    const els = document.querySelectorAll('#npbar .prog, .knp .prog'); if (!els.length) return;
+    const els = document.querySelectorAll('#npbar .prog, .knp .prog, .npv .prog'); if (!els.length) return;
     const np = C4.nowPlaying(), p = songPos(np); if (p == null) return;
     els.forEach(el => { el.children[0].textContent = mmss(p); el.querySelector('b').style.width = (100 * p / np.total).toFixed(1) + '%'; });
   }, 1000);
@@ -835,6 +839,7 @@ const X = (() => {
     wxAt = Date.now();
     try { wxData = await C4.api('/api/weather/panel?hours=12'); wxErr = ''; } catch (e) { wxData = null; wxErr = e.message; }
     const el = $('#npw'); if (el) el.innerHTML = wxHtml();
+    const nv = $('#npvw'); if (nv) nv.innerHTML = wxHtml(12);
     const wb = $('#wxb'); if (wb && !wb.hidden) wb.innerHTML = wxHtml(bandHours());
   }
   const WXI = c => c === 0 ? '☀️' : c <= 2 ? '🌤️' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 67 || (c >= 80 && c <= 82) ? '🌧️' : c <= 86 ? '🌨️' : '⛈️';
@@ -1034,6 +1039,12 @@ const X = (() => {
 
   return {
     go, pickRoom, menu, closeMenu, cbOpen, cbClose, kodiTab, kodiSort, kodiOpen, kodiBack, kodiMore, kodiSearch, toggleWx, mbSet, openAlbum, mbRe, mbBack, songJump, bluGo, bluInput, srcGo,
+    seek(ev, el) {      // Klick in die Zeitleiste: an diese Stelle im Titel springen (nicht zur Player-Ansicht)
+      ev.stopPropagation();
+      const np = C4.nowPlaying(), r = el.getBoundingClientRect();
+      if (ev.clientX < r.left - 6 || ev.clientX > r.right + 6) return;   // Klick auf die Zeitangaben: nichts tun
+      if (np.total) C4.seek(Math.round(np.total * Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width))));
+    },
     grpPick, lt: (id, lvl) => C4.setLevel(id, lvl).then(() => { if (lightScope === 'house') loadHouseLights(); }),
     lightScope: s => { lightScope = s; if (s === 'house') loadHouseLights(); renderView(true); },
     lightTab: s => { lightTab = s; renderView(true); },

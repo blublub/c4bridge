@@ -452,6 +452,9 @@ class BluOS:
     async def repeat(self, ip: str, mode: str) -> None:
         await self.get(ip, f"/Repeat?state={self.REPEAT_STATE[mode]}")
 
+    async def seek(self, ip: str, secs: int) -> None:
+        await self.get(ip, f"/Play?seek={max(0, int(secs))}")
+
     async def transport(self, ip: str, cmd: str) -> None:
         path = {"PLAY": "/Play", "PAUSE": "/Pause", "STOP": "/Stop", "SKIP_FWD": "/Skip", "SKIP_REV": "/Back"}[cmd]
         await self.get(ip, path)

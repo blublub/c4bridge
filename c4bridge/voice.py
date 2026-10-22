@@ -662,7 +662,7 @@ _QUESTION = re.compile(r"^\W*(ist|sind|brennt|brennen|leuchtet|leuchten|läuft|l
 _COLLECTION = re.compile(r"\b(sammlung|(unsere|eigene|meine|lokale)[rnms]? musik|bibliothek|von uns)\b", re.I)
 _YESNO = re.compile(r"^\W*(ist|sind|brennt|brennen|leuchtet|leuchten|gibt es|habe? ich)\b", re.I)   # Ja/Nein-Frage
 _REQUEST = re.compile(r"\b(mach|schalt|dreh|stell|fahr|spiel|start)\w*", re.I)
-_SWITCHING = ("light_set", "light_adjust", "switch_set", "blind_action", "room_off", "climate_setpoint",
+_SWITCHING = ("light_set", "light_adjust", "light_color", "switch_set", "blind_action", "room_off", "climate_setpoint",
               "climate_setpoint_delta", "music_play", "stream_play", "video_play", "media_control", "volume_set",
               "volume_adjust")
 _PLAYING = ("music_play", "stream_play", "video_play")       # Frage („Gibt es was von Adele?“) → anbieten statt spielen
@@ -1112,6 +1112,7 @@ LICHT
 „Mach die Stehlampe an“ → light_set(device="Stehlampe", on=true)
 „Stehlampe auf 30 Prozent“ → light_set(device="Stehlampe", on=true, level=30); „Licht auf die Hälfte“ → light_set(on=true, level=50)
 „Volle Helligkeit“, „Mach richtig hell“ → light_set(on=true, level=100)
+„Mach das Licht blau“, „Küchenzeile warmweiß“ → light_color(color="blau") bzw. light_color(device="Küchenzeile", color="warmweiß")
 „Etwas heller“, „Ein bisschen mehr Licht“ → light_adjust(direction="up", strength="klein")
 „Heller“, „Zu dunkel“, „Ich seh nichts“ → light_adjust(direction="up", strength="mittel")
 „Etwas dunkler“, „Dimm mal ein bisschen“ → light_adjust(direction="down", strength="klein")
@@ -1166,6 +1167,17 @@ TOOLS = [
             "on": {"type": "boolean"},
             "level": {"type": "integer", "description": "Helligkeit 0-100, optional"}},
             "required": ["on"]}}},
+    {"type": "function", "function": {
+        "name": "light_color",
+        "description": "Stellt Farbe oder Weißton von Farblichtern ein (nur Leuchten, die Farbe können). "
+                       "Ohne device: alle Farblichter im (Sprecher-)Raum.",
+        "parameters": {"type": "object", "properties": {
+            "device": {"type": "string", "description": "Nur wenn EIN bestimmtes Licht genannt wird"},
+            "room": {"type": "string", "description": "Raum, falls genannt"},
+            "color": {"type": "string", "description": "Farbe oder Weißton wie gesagt: warmweiß, neutralweiß, kaltweiß, "
+                      "rot, orange, gelb, grün, türkis, blau, lila, pink, rosa, eine Kelvinzahl ('3000 K') oder der Name "
+                      "einer Lichtstimmung aus der Control4-App (z. B. Relax, Sunset, Nightlight)"}},
+            "required": ["color"]}}},
     {"type": "function", "function": {
         "name": "light_adjust",
         "description": "Macht Lichter relativ heller oder dunkler (ohne Zielwert) - für Aussagen wie "
@@ -2132,6 +2144,44 @@ async def execute_tool(fn: dict, bridge: Bridge, dry_run: bool,
         return f"{len(names)} Lichter in {where} {'an' if on else 'aus'}" + \
                (f" ({lvl} %)" if 0 < lvl < 100 else "") + sim
 
+    if name == "light_color":
+        devs_l = [x for x in devs if x["type"] == "light"]
+        device_is_room(devs_l)
+        if args.get("device"):
+            if amb_device(name, devs_l):
+                return amb_device(name, devs_l)
+            d, err = pick("kein Licht", devs_l)
+            if err:
+                return err
+            targets, where = [d], d["room"]
+        else:
+            if amb_problem(name):
+                return amb_problem(name)
+            room_names_ = room_names()
+            if not room_names_:
+                return Problem("Ohne Raumzuordnung des Mikrofons und ohne Raumnennung weiß ich nicht, welches Licht gemeint ist.")
+            targets = [d for d in devs_l if d["room"] in room_names_]
+            where = "/".join(room_names_)
+        colorful = set()
+        for rid in {d["room_id"] for d in targets}:
+            try:
+                colorful |= {s_.get("id") for s_ in await bridge.get(f"/api/devices/state?room_id={rid}") if s_.get("color")}
+            except Exception:  # noqa: BLE001
+                pass
+        targets = [d for d in targets if d["id"] in colorful]
+        if not targets:
+            return Problem(f"In {where} gibt es kein Licht, das Farbe kann.")
+        color = str(args.get("color") or "").strip()
+        names = []
+        for d in targets:
+            if not dry_run:
+                try:
+                    await bridge.post(f"/api/devices/{d['id']}/color", {"name": color})
+                except Exception:  # noqa: BLE001
+                    return Problem(f"Die Farbe „{color}“ kenne ich nicht.")
+            names.append(f"„{dev_of(d)}“")
+        return (f"Licht {names[0]}" if len(names) == 1 else f"{len(names)} Lichter in {where}") + f" auf {color}" + sim
+
     if name == "light_adjust":
         # relative Helligkeit: aktuellen Stand lesen, dann PROPORTIONAL verstellen
         strength = str(args.get("strength", "mittel")).lower()
@@ -3000,7 +3050,7 @@ _CLAIMS_STATE = re.compile(r"\b(ist|sind|läuft|laufen) (bereits|schon|jetzt|nun
                            r"\b\d+([.,]\d+)?\s*(°\s*c?|grad)\b", re.I)   # Messwert ohne Werkzeug = erfunden
 
 
-_TOOL_AS_TEXT = re.compile(r"\b(light_set|light_adjust|switch_set|blind_action|climate_setpoint(_delta)?|get_temperature|lights_status|music_albums|"
+_TOOL_AS_TEXT = re.compile(r"\b(light_set|light_adjust|light_color|switch_set|blind_action|climate_setpoint(_delta)?|get_temperature|lights_status|music_albums|"
                            r"music_play|stream_play|video_play|volume_set|volume_adjust|media_control|rooms_playing|room_off|"
                            r"weather)\b")
 

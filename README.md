@@ -55,9 +55,9 @@ Everything runs inside your home network. No cloud services are needed except th
 
 **Control UI (browser, desktop-first)**
 - Rooms and floors, imported automatically from your Control4 project (Composer visibility respected).
-- Lights (on/off and dimming), blinds and blind groups, thermostats, door/window contacts and motion sensors.
+- Lights (on/off and dimming; colour lights with white tone, colour and the presets from the Control4 app), blinds and blind groups, thermostats, door/window contacts and motion sensors.
 - Live state through the Director WebSocket push, with a polling fallback.
-- Per-room volume, mute, play/pause and now-playing info, taken from the Composer bindings.
+- Per-room volume, mute, play/pause and now-playing info, taken from the Composer bindings. Click the progress bar to jump within a track (BluOS and KODI; Control4 "My Music" reports no position).
 - Customisable home screen: drag-and-drop tiles and per-user favourites.
 - Cameras: snapshots, or a low-latency live stream (RTSP → HLS through [MediaMTX](https://github.com/bluenviron/mediamtx)).
 - Weather from Open-Meteo.

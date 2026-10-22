@@ -85,7 +85,7 @@ const C4 = (() => {
       c4_pass: 'Control4-Passwort', c4_ip: 'Controller-IP', test: 'Testen', testing: 'teste Anmeldung (ein Versuch) …',
       save_scan: 'Speichern & Projekt abrufen', wiz_ok: '✓ angemeldet – Controller:', wiz_fail: '✗ Anmeldung fehlgeschlagen',
       wiz_saving: 'speichere & rufe Projekt ab (bis ~30 s) …', wiz_imported: 'importiert – lade Oberfläche …',
-      pick_title: 'Zur Startseite hinzufügen', pick_cats: 'Bereiche', pick_devs: 'Geräte',
+      pick_title: 'Zur Startseite hinzufügen', seek: 'Klicken, um im Titel zu springen', color: 'Farbe', white_tone: 'Weißton', presets: 'Voreinstellungen', pick_cats: 'Bereiche', pick_devs: 'Geräte',
       kind_album: 'Album', kind_song: 'Titel', search_res: 'Suche „{0}“', on_home: 'auf der Startseite ✓',
       tab_songs: 'Titel', recent: 'Zuletzt gespielt', random: 'Zufällig', reshuffle: 'Neu mischen',
       queue: 'Warteschlange', play_from: 'Ab hier', r_ctl: 'Steuerelemente', r_num: 'Tastenfeld', r_menu: 'Menü', r_cancel: 'Abbrechen', r_info: 'Info', r_back: 'Zurück',
@@ -141,7 +141,7 @@ const C4 = (() => {
       c4_pass: 'Control4 password', c4_ip: 'Controller IP', test: 'Test', testing: 'testing login (one attempt) …',
       save_scan: 'Save & fetch project', wiz_ok: '✓ logged in – controller:', wiz_fail: '✗ login failed',
       wiz_saving: 'saving & fetching project (up to ~30 s) …', wiz_imported: 'imported – loading interface …',
-      pick_title: 'Add to home screen', pick_cats: 'Areas', pick_devs: 'Devices',
+      pick_title: 'Add to home screen', seek: 'Click to jump within the track', color: 'Colour', white_tone: 'White tone', presets: 'Presets', pick_cats: 'Areas', pick_devs: 'Devices',
       kind_album: 'Album', kind_song: 'Track', search_res: 'Search “{0}”', on_home: 'on home screen ✓',
       tab_songs: 'Tracks', recent: 'Recently played', random: 'Random', reshuffle: 'Shuffle again',
       queue: 'Queue', play_from: 'From here', track_started: 'Album started at track {0} ✓', track_started_name: 'Album started at "{0}" ✓',
@@ -386,7 +386,7 @@ const C4 = (() => {
   function light(d) {
     const st = S.light[d.id] || {};
     const dimmable = st.dimmable !== undefined ? st.dimmable : d.function !== 'on_off';
-    return { on: !!st.on, level: st.level ?? (st.on ? 100 : 0), dimmable, known: st.level != null };
+    return { on: !!st.on, level: st.level ?? (st.on ? 100 : 0), dimmable, known: st.level != null, color: st.color || null };
   }
   // Gruppen: Positions-Befehl geht direkt an die Gruppe (wie in der App). Eine Position hat die Gruppe nur,
   // wenn alle Mitglieder gleich stehen (sonst 9999) → dann Mittelwert der Einzel-Rollläden im Raum anzeigen.
@@ -544,10 +544,16 @@ const C4 = (() => {
     return typeof x === 'string' ? x : '';
   }
   const BLU_SERVICE = { LocalMusic: 'bluos_lib', Capture: 'inputs' };
+  const BLU_LINGER_MS = 10 * 60 * 1000, bluLastPlay = {};
   function nowPlaying() {
     const b = S.rs.bluos;
     if (b && !b.error) {   // BluOS-Raum: alles vom Player
-      const on = ['play', 'stream', 'pause', 'connecting'].includes(b.state);
+      const rid = S.room && S.room.id, active = ['play', 'stream', 'pause', 'connecting'].includes(b.state);
+      if (active) bluLastPlay[rid] = Date.now();
+      // Ende der Warteschlange (stop): Player mit letztem Titel stehen lassen, solange der Raum an ist
+      // oder das Ende höchstens 10 min her ist – sonst verschwindet er mitten im Hören
+      const on = active || (b.state === 'stop' && !!b.title
+        && ((S.rs.selected_device && S.rs.power !== false) || Date.now() - (bluLastPlay[rid] || 0) < BLU_LINGER_MS));
       const src = b.service === 'Capture' ? (b.title || 'Line In') : (BLU_SERVICE[b.service] ? t(BLU_SERVICE[b.service]) : b.service);
       return { on, source: src, title: b.service === 'Capture' ? '' : b.title, artist: b.artist || '', album: b.album || '',
         playState: b.play_state || '', img: b.image || '', watch: false, bluos: true,
@@ -836,6 +842,13 @@ const C4 = (() => {
     try { await post(`/api/rooms/${S.room.id}/shuffle`, { on }); } catch (e) { toast(e.message); }
     pollSoon(1000);
   }
+  async function seek(secs) {
+    const r = S.rs.bluos || S.rs.kodi;
+    if (r) { r.secs = secs; r.at = Date.now() / 1000; }
+    emit('state');
+    try { await post(`/api/rooms/${S.room.id}/seek`, { secs }); } catch (e) { toast(e.message); }
+    pollSoon(1000);
+  }
   async function setRepeat() {
     const np = nowPlaying(), mode = { off: 'all', all: 'one', one: 'off' }[np.repeat || 'off'];
     if (S.rs.bluos) S.rs.bluos.repeat = { all: 0, one: 1, off: 2 }[mode]; else if (S.rs.kodi) S.rs.kodi.repeat = mode;
@@ -1049,6 +1062,44 @@ const C4 = (() => {
     btn.classList.add('have'); btn.querySelector('.pk-st').textContent = '✓';
   }
   const closePicker = () => { const p = $('#c4picker'); if (p) p.remove(); };
+
+  // ---------------------------------------------------------------- Farblicht (light_v2 mit Farbe/Weißton)
+  // Anzeige-Farbe: Weißton zwischen warm (2000 K) und kalt (6500 K) gemischt, Farbe aus Farbton/Sättigung
+  function colorCss(c) {
+    if (!c) return '';
+    if (c.mode === 'cct') {
+      const f = Math.max(0, Math.min(1, ((c.cct || 3000) - 2000) / 4500)), mix = (a, b) => Math.round(a + (b - a) * f);
+      return `rgb(${mix(255, 222)},${mix(170, 232)},${mix(90, 255)})`;
+    }
+    return `hsl(${c.hue || 0},${Math.max(25, c.sat ?? 100)}%,58%)`;
+  }
+  const colorDot = (d, size = 18) => { const c = light(d).color; return c ? `<button class="cdot" title="${t('color')}"
+    style="--c:${colorCss(c)};width:${size}px;height:${size}px" onclick="event.stopPropagation();C4.showColor(${d.id})"></button>` : ''; };
+  async function showColor(id) {
+    closePicker();
+    let info; try { info = await api(`/api/devices/${id}/color`); } catch (e) { return toast(e.message); }
+    const st = info.state || {}, el = document.createElement('div');
+    el.id = 'c4picker';
+    const pre = (info.presets || []).map(p => `<button class="cl-pre" onclick="C4.setColor(${id},{preset:${p.id}})">
+        <i style="background:${colorCss(p)}"></i><span>${esc(p.name)}</span></button>`).join('');
+    el.innerHTML = `<div class="pk-box glass cl-box"><div class="pk-h"><b>${esc(info.name)}</b><span>${esc(info.room)}</span>
+        <button class="pk-x" onclick="C4.closePicker()">${ic('x', 18)}</button></div>
+      <div class="pk-body"><div class="pk-sec">${t('white_tone')}</div>
+        <input type="range" class="cl-k" min="${info.cct_min}" max="${info.cct_max}" step="50" value="${st.cct > 0 ? st.cct : 3000}"
+          onchange="C4.setColor(${id},{kelvin:+this.value})">
+        <div class="pk-sec">${t('color')}</div>
+        <input type="range" class="cl-h" min="0" max="359" value="${st.mode === 'color' ? st.hue || 0 : 0}"
+          onchange="C4.setColor(${id},{hue:+this.value,sat:+this.parentNode.querySelector('.cl-s').value})">
+        <input type="range" class="cl-s" min="10" max="100" value="${st.mode === 'color' ? st.sat || 100 : 100}"
+          onchange="C4.setColor(${id},{hue:+this.parentNode.querySelector('.cl-h').value,sat:+this.value})">
+        ${pre ? `<div class="pk-sec">${t('presets')}</div><div class="cl-pres">${pre}</div>` : ''}</div></div>`;
+    el.addEventListener('click', e => { if (e.target === el) closePicker(); });
+    document.body.appendChild(el);
+  }
+  const setColor = (id, body) => act(async () => {
+    await post(`/api/devices/${id}/color`, body);
+    setTimeout(() => api(`/api/devices/state?room_id=${S.room.id}`).then(l => { mergeLights(l); emit('state'); }).catch(() => {}), 900);
+  });
 
   // ---------------------------------------------------------------- Kameras
   const snapUrl = id => `/api/cameras/${id}/snapshot?ts=${Date.now()}`;
@@ -1282,9 +1333,9 @@ const C4 = (() => {
     canPlay, isBluos, bluKey, bluDead, bluTop, renderBlu, bluStart, bluOpen, bluAct, bluBack, bluMore, bluSearch, bluPlay, bluReset, queueJump,
     letterOf, srcIcon, icHtml, miniArt, kodiLoad, kodiRoom, kodiLib, kodiDetails, albView, albViewBtn, toggleAlbView, remote, remoteHtml, remoteSync, camList, camDev, isFavRoom, toggleFavRoom, favStar,
     learned, learnedAct, infoText, setLevel, toggleLight, mergeLights, rangeLive, rangeEnd, blindDo, blindLevel, blindToggle, climStep, climMode, selectSource,
-    transport, playPause, ppButtons, mixButton, repeatButton, setShuffle, setRepeat, volume, volumeStep, mute, roomOff, playAlbum, playSong,
+    transport, playPause, ppButtons, mixButton, repeatButton, setShuffle, setRepeat, seek, volume, volumeStep, mute, roomOff, playAlbum, playSong,
     favList, isFav, addFav, rmFav, toggleFav, moveFav, favSize, setFavSize, setFavOrder, saveAsDefault, resetLayout, setEditing,
-    showPicker, pickerAdd, closePicker, camHtml, wireCams, snapUrl, toast, roomGroups, house, showSetup,
+    showPicker, pickerAdd, closePicker, showColor, setColor, colorDot, colorCss, camHtml, wireCams, snapUrl, toast, roomGroups, house, showSetup,
     get theme() { return theme; },
   };
 })();

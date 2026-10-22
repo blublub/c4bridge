@@ -40,6 +40,7 @@ EXAMPLES = """Without a room name, the speaker's room applies (leave room out).
 LIGHTS
 "Lights on", "Give me some light" → light_set(on=true); "All dark" → light_set(on=false); "Lights on in the living room" → light_set(on=true, room="Living Room")
 "Floor lamp to 30 percent" → light_set(device="Floor lamp", on=true, level=30); "Full brightness" → light_set(on=true, level=100)
+"Make the light blue", "Kitchen counter warm white" → light_color(color="blue") or light_color(device="Kitchen counter", color="warm white")
 "A bit brighter" → light_adjust(direction="up", strength="klein"); "Too dark" → (up, "mittel"); "A bit darker" → (down, "klein"); "Too bright" → (down, "mittel"); "Make it cosy" → (down, "gross")
 "Where are lights still on?" → lights_status (questions NEVER switch)
 "Lights off in the bathroom and on in the hall" → two calls light_set with room
@@ -296,6 +297,10 @@ RULES = [
     (R(r"In (.+?) gibt es keine Lichter\."), r"There are no lights in \1."),
     (R(r"Den Lichtzustand in (.+?) kann ich gerade nicht lesen\."), r"I can't read the light status in \1 right now."),
     (R(r"Die Lichter in (.+?) sind schon aus\."), r"The lights in \1 are already off."),
+    (R(r"Licht („.+?“) auf (.+)"), r"Light \1 set to \2"),
+    (R(r"(\d+) Lichter in (.+?) auf (.+)"), r"\1 lights in \2 set to \3"),
+    (R(r"In (.+?) gibt es kein Licht, das Farbe kann\."), r"There is no colour light in \1."),
+    (R(r"Die Farbe „(.+?)“ kenne ich nicht\."), r"I don't know the colour “\1”."),
     (R(r"Licht („.+?“) (an|aus)( \(\d+ %\))?"), lambda m: f"Light {m[1]} {_STATE[m[2]]}{m[3] or ''}"),
     (R(r"Licht( in (.+?))? (an|auf (\d+ %))"),
      lambda m: f"Light{' in ' + m[2] if m[2] else ''} {'on' if m[3] == 'an' else 'to ' + m[4]}"),

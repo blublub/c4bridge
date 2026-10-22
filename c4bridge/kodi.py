@@ -311,7 +311,7 @@ class Kodi:
 
     async def _write(self, did: str, method: str, params: dict):
         """Bewusst nur diese Methoden – alles andere bleibt lesend (rpc)."""
-        if method not in ("Player.SetShuffle", "Player.SetRepeat", "Player.Open"):
+        if method not in ("Player.SetShuffle", "Player.SetRepeat", "Player.Open", "Player.Seek"):
             raise KodiError(f"{method} nicht freigegeben")
         p = self.players[str(did)]
         r = await self._rpc(p["host"], p.get("port") or 8080, method, params)
@@ -320,6 +320,11 @@ class Kodi:
 
     async def set_shuffle(self, did: str, on: bool) -> None:
         await self._write(did, "Player.SetShuffle", {"playerid": await self._player(did), "shuffle": bool(on)})
+
+    async def seek(self, did: str, secs: int) -> None:
+        s = max(0, int(secs))
+        await self._write(did, "Player.Seek", {"playerid": await self._player(did),
+                                               "value": {"time": {"hours": s // 3600, "minutes": s % 3600 // 60, "seconds": s % 60, "milliseconds": 0}}})
 
     async def set_repeat(self, did: str, mode: str) -> None:
         await self._write(did, "Player.SetRepeat", {"playerid": await self._player(did), "repeat": mode})

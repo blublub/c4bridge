@@ -282,7 +282,8 @@ body { overflow: hidden; }
   .x4.side .np .bar .nc { display: none; }
   .x4.side .np .bar .nt { width: 100%; }
   .x4.side .np .bar .tr { margin: 0; }
-  .x4.side .np .bar .vol { flex: 1; width: auto; min-width: 0; }
+  .x4.side .np .bar .tr { flex: 1 1 auto; justify-content: space-between; }
+  .x4.side .np .bar .vol { order: 3; flex: 1 1 100%; width: auto; min-width: 0; }   /* eigene Zeile, sonst 0 px breit */
   .x4.side .np .npw { grid-template-columns: 1fr; gap: 8px; }
   .x4.side .np .wc { padding: 8px 14px; }
   .x4.side .np .wc.hrs { gap: 2px; }
@@ -405,6 +406,7 @@ body { overflow: hidden; }
 .mx { background: none; border: 0; color: var(--dim); cursor: pointer; padding: 6px; border-radius: 8px; display: inline-flex; }
 .mx:hover:not([disabled]) { color: var(--txt); background: rgba(255,255,255,.08); }
 .mx.on { color: var(--accent, #7cc4ff); }
+.np .tr .mx { color: var(--dim); } .np .tr .mx.on { color: var(--accent, #7cc4ff); }   /* sonst gewinnt .np .tr button (weiß) */
 .mx[disabled] { opacity: .3; cursor: default; }
 
 /* Kompakt (PC schmaler als 1800 px oder niedriger als 1050 px, Klasse .cmp aus x4.js):
@@ -488,3 +490,22 @@ body { overflow: hidden; }
 .t.grpt.m-slider .gr .bb, .t.grpt.m-slider .gr .sw { display: none; }
 .gpick .gsub { margin: 14px 0 6px; font-size: 14px; color: var(--dim); }
 .gpick .gmode { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+
+/* Zeitleiste: Klick springt im Titel; auch in der großen Player-Ansicht */
+.npv .prog { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px; font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.npv .prog i { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+.npv .prog i b { display: block; height: 100%; background: #fff; border-radius: 3px; transition: width 1s linear; }
+.prog { cursor: default; padding: 6px 0; margin-top: 0 !important; }   /* höhere Klickfläche um die dünne Leiste */
+.prog i { cursor: pointer; transition: height .15s; } .prog:hover i { height: 8px; }
+
+/* Große Player-Ansicht mit Wetterspalte rechts (ab 1500 px) */
+.npv.wx { grid-template-columns: minmax(260px, 420px) minmax(0, 1fr) 300px; }
+.npvw { display: flex; flex-direction: column; gap: 12px; }
+.npvw .empty { margin: 0; padding: 10px 14px; color: var(--dim); font-size: 13px; }
+.npvw .wc { background: rgba(18,18,28,.5); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; min-width: 0; }
+.npvw .wc .wi { font-size: 38px; line-height: 1; }
+.npvw .wc b { display: block; font-size: 20px; } .npvw .wc small { display: block; color: var(--dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.npvw .wc.hrs { flex-direction: column; align-items: stretch; gap: 0; padding: 8px 14px; }
+.npvw .wc .h { display: grid; grid-template-columns: 52px 34px 1fr auto; align-items: center; padding: 4px 0; }
+.npvw .wc .h span { font-size: 20px; } .npvw .wc .h b { font-size: 15px; } .npvw .wc .h .rp { color: #8fc6ff; }
+.npvw .wc.tmr b { font-size: 15px; }
