@@ -1,0 +1,305 @@
+{
+ "_info": "Treiber-Profil je Control4-Proxy: 'push' = empfangene OnDataToUI-Felder (Punkt-Schreibweise für Verschachteltes) -> normalisierte Bedeutung; 'commands' = Befehle, die der Bridge für diesen Treiber bekannt sind (params = Pflicht-Parameter). norm-Werte der UI: brightness (0-100), temperature_c. _unknown = Fallback. Nach Änderungen Bridge neu starten.",
+ "light_v2": {
+  "label": "Control4-Licht v2 (Opus, Hue, Relais, Tint …)",
+  "push": {
+   "LIGHT_LEVEL": "brightness",
+   "light_brightness_active_percent": "brightness",
+   "light_brightness_changed.light_brightness_current": "brightness",
+   "light_brightness_changed.light_brightness_previous": "brightness_previous"
+  },
+  "commands": {
+   "SET_LEVEL": {
+    "params": {
+     "LEVEL": "0-100 (0=aus)"
+    },
+    "tested": true
+   },
+   "RAMP_TO_LEVEL": {
+    "params": {
+     "LEVEL": "0-100",
+     "TIME": "Rampe in ms"
+    },
+    "tested": false
+   }
+  }
+ },
+ "thermostatV2": {
+  "label": "Thermostate (Neo, Raum-Thermostat-Geräte)",
+  "push": {
+   "current_temperature_c": "temperature_c",
+   "current_temperature_f": "temperature_f",
+   "current_temperature": "temperature_raw"
+  },
+  "commands": {
+   "SET_SETPOINT_HEAT": {
+    "params": {
+     "CELSIUS": "Solltemperatur Heizen, z.B. 22"
+    },
+    "tested": false
+   },
+   "INC_SETPOINT_HEAT": {
+    "params": {},
+    "tested": false,
+    "note": "Temp+"
+   },
+   "DEC_SETPOINT_HEAT": {
+    "params": {},
+    "tested": false,
+    "note": "Temp-"
+   },
+   "SET_MODE_HVAC": {
+    "params": {
+     "MODE": "Off | Heat (aus HVAC_MODES_LIST)"
+    },
+    "tested": false
+   },
+   "SET_MODE_HOLD": {
+    "params": {
+     "MODE": "Off | Until Next | Hold Until"
+    },
+    "tested": false
+   },
+   "SET_SCALE": {
+    "params": {},
+    "tested": false
+   }
+  },
+  "variables_state": {
+   "TEMPERATURE_C": "Aktuelle Temperatur",
+   "HEAT_SETPOINT_C": "Solltemp Heizen",
+   "HVAC_MODE": "Heat/Off",
+   "HVAC_STATE": "Heizt gerade?",
+   "HVAC_MODES_LIST": "Verfügbare Modi",
+   "HOLD_MODE": "Programm-Halte-Modus",
+   "SCALE": "CELSIUS"
+  }
+ },
+ "room": {
+  "_hint": "Raum-Items (kein Treiber im engeren Sinn) - Befehle gehen an /items/{roomId}/commands",
+  "push": {},
+  "commands": {
+   "SET_VOLUME_LEVEL": {
+    "params": {
+     "LEVEL": "0-100"
+    },
+    "tested": true,
+    "note": "versteckt - taucht nicht in der Befehlsliste auf"
+   },
+   "MUTE_ON": {
+    "params": {},
+    "tested": true
+   },
+   "MUTE_OFF": {
+    "params": {},
+    "tested": true
+   },
+   "SELECT_AUDIO_DEVICE": {
+    "params": {
+     "deviceid": "Item-ID"
+    },
+    "tested": false
+   },
+   "SELECT_VIDEO_DEVICE": {
+    "params": {
+     "deviceid": "Item-ID"
+    },
+    "tested": false
+   },
+   "PLAY / PAUSE / STOP / SKIP_FWD / SKIP_REV": {
+    "params": {},
+    "tested": false
+   },
+   "ROOM_OFF": {
+    "params": {},
+    "tested": false
+   }
+  }
+ },
+ "blind": {
+  "label": "Rollläden/Jalousien – Basis (blind-Proxy: blind.c4i, Automate Motor, Blind Groups)",
+  "_note": "Basis-Profil für alle Treiber mit Proxy 'blind' inkl. Gruppen (live bestätigt 17.10.2026). Kippbare Behänge (Raffstore/Jalousie über KNX o. ä.) haben zusätzlich Lamellen-Befehle – später eigenes Profil.",
+  "push": {
+   "moving.level": "level",
+   "moving.level_target": "level_target",
+   "stopped.level": "level",
+   "level": "level"
+  },
+  "commands": {
+   "SET_LEVEL_TARGET": {
+    "params": {
+     "LEVEL_TARGET": "0-100 (% offen)"
+    },
+    "tested": true,
+    "note": "auch für Gruppen – fehlt dort in der Befehlsliste, funktioniert aber (wie Control4-App)"
+   },
+   "SET_LEVEL_TARGET:LEVEL_TARGET_OPEN": {
+    "params": {},
+    "tested": true
+   },
+   "SET_LEVEL_TARGET:LEVEL_TARGET_CLOSED": {
+    "params": {},
+    "tested": true
+   },
+   "TOGGLE": {
+    "params": {},
+    "tested": false
+   },
+   "STOP": {
+    "params": {},
+    "tested": false,
+    "note": "nur Einzel-Rollläden, Gruppen nicht"
+   }
+  },
+  "variables_state": {
+   "Level": "Position in % offen (0=zu, 100=offen); Gruppe 9999 = Mitglieder ungleich",
+   "Opening/Closing": "fährt gerade",
+   "Type": "Shade | Blind | Group"
+  }
+ },
+ "_unknown": {
+  "label": "Unbekannter Treiber - heuristische Auswertung",
+  "push": {
+   "LIGHT_LEVEL": "brightness",
+   "current_temperature_c": "temperature_c"
+  },
+  "commands": {}
+ },
+ "receiver": {
+  "label": "AV-Receiver als Lautstärke-Endpunkt (Denon, Marantz, Yamaha … – Proxy receiver)",
+  "push": {
+   "volume_changed.volume": "volume",
+   "mute_changed.mute": "mute",
+   "volume_changed.output": "output",
+   "mute_changed.output": "output",
+   "input_changed.input": "input",
+   "powerstate": "power"
+  },
+  "commands": {},
+  "_note": "Lautstärke-Gerät eines Raums = CURRENT_VOLUME_DEVICE_ID; live bestätigt mit Denon 17.10.2026"
+ },
+ "amplifier": {
+  "label": "Verstärker/Audio-Endpunkt (Control4-Verstärker, BluOS-Endpunkt … – Proxy amplifier)",
+  "push": {
+   "OutputStatus.VolumeLevel": "volume",
+   "OutputStatus.MuteFlag": "mute",
+   "OutputStatus.OutputID": "output"
+  },
+  "commands": {},
+  "_note": "VolumeLevel -1 = unverändert; live bestätigt mit BluOS-Endpunkt 17.10.2026"
+ },
+ "control4_agent_uiconfiguration": {
+  "label": "UI-Configuration-Agent (Raum an/aus: listen/watch/lights)",
+  "push": {
+   "active_state_changed.room_id": "room_id",
+   "active_state_changed.active": "active",
+   "active_state_changed.type": "kind"
+  },
+  "commands": {}
+ },
+ "relaysingle_relay_c4": {
+  "label": "Control4-Relais (Pumpe, Lüfter, Relais – Proxy relaysingle_*)",
+  "push": {
+   "relay_state.current_state": "relay",
+   "state": "on"
+  },
+  "commands": {
+   "CLOSE": {
+    "params": {},
+    "tested": false,
+    "note": "Kontakt zu = AN"
+   },
+   "OPEN": {
+    "params": {},
+    "tested": false,
+    "note": "Kontakt auf = AUS"
+   },
+   "TOGGLE": {
+    "params": {},
+    "tested": false
+   }
+  },
+  "_note": "RelayState 1 = geschlossen = an; Ereignis relay_state.current_state CLOSED/OPENED (Mitschnitt 17.10.2026)"
+ },
+ "relaysingle_pump_c4": {
+  "label": "Control4-Relais (Pumpe, Lüfter, Relais – Proxy relaysingle_*)",
+  "push": {
+   "relay_state.current_state": "relay",
+   "state": "on"
+  },
+  "commands": {
+   "CLOSE": {
+    "params": {},
+    "tested": false,
+    "note": "Kontakt zu = AN"
+   },
+   "OPEN": {
+    "params": {},
+    "tested": false,
+    "note": "Kontakt auf = AUS"
+   },
+   "TOGGLE": {
+    "params": {},
+    "tested": false
+   }
+  },
+  "_note": "RelayState 1 = geschlossen = an; Ereignis relay_state.current_state CLOSED/OPENED (Mitschnitt 17.10.2026)"
+ },
+ "relaysingle_fan_c4": {
+  "label": "Control4-Relais (Pumpe, Lüfter, Relais – Proxy relaysingle_*)",
+  "push": {
+   "relay_state.current_state": "relay",
+   "state": "on"
+  },
+  "commands": {
+   "CLOSE": {
+    "params": {},
+    "tested": false,
+    "note": "Kontakt zu = AN"
+   },
+   "OPEN": {
+    "params": {},
+    "tested": false,
+    "note": "Kontakt auf = AUS"
+   },
+   "TOGGLE": {
+    "params": {},
+    "tested": false
+   }
+  },
+  "_note": "RelayState 1 = geschlossen = an; Ereignis relay_state.current_state CLOSED/OPENED (Mitschnitt 17.10.2026)"
+ },
+ "DriverWorks_Chowmain_Belkin_WeMo": {
+  "label": "WeMo-Steckdose (alter Chowmain-Treiber, eigener Proxy)",
+  "push": {},
+  "commands": {
+   "Turn WeMo On": {
+    "params": {},
+    "tested": false
+   },
+   "Turn WeMo Off": {
+    "params": {},
+    "tested": false
+   }
+  },
+  "_note": "liefert keinen Schaltzustand (nur Energie-Zähler) – Oberfläche zeigt an/aus ohne Status"
+ },
+ "uibutton": {
+  "label": "uibutton-Geräte (Chowmain Outlet u. a.) – Zustand nur über icon_description",
+  "push": {
+   "icon_description": "state_text",
+   "OUTLET_ON": "on"
+  },
+  "commands": {
+   "On": {
+    "params": {},
+    "tested": false
+   },
+   "Off": {
+    "params": {},
+    "tested": false
+   }
+  },
+  "_note": "Outlet: Variable OUTLET_ON, Push nur icon 'ON-E'/icon_description 'On'/'Off' (Mitschnitt 17.10.2026)"
+ }
+}

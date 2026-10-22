@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1f3a">
+<title>c4bridge</title>
+<link rel="stylesheet" href="/ui/core.css">
+<script>
+  /* Theme vor dem ersten Zeichnen wählen (kein Flackern). Maßgeblich ist die Einstellung des
+     Benutzers auf der Bridge; der lokale Wert ist nur der Schnellstart – core.js gleicht ab. */
+  (function () {
+    var q = new URLSearchParams(location.search).get('theme'), s = null;
+    try { s = localStorage.getItem('c4theme'); } catch (e) { }
+    var t = q || s || 'x4';
+    if (t !== 'os3') t = 'x4';
+    window.C4_THEME = t;
+    document.documentElement.dataset.theme = t;
+    document.write('<link rel="stylesheet" href="/ui/' + t + '.css">');
+  })();
+</script>
+<script src="/vendor/icons.js?v=3"></script>
+<script src="/ui/core.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>document.write('<script src="/ui/' + window.C4_THEME + '.js"><\/script>');</script>
+</body>
+</html>

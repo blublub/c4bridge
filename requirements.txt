@@ -1,0 +1,18 @@
+# c4bridge – Python-Abhängigkeiten (getestet mit Python 3.11, Stand 2026-10-16)
+# Installation:  python -m venv .venv  &&  .venv/Scripts/python -m pip install -r requirements.txt
+#                (Linux: .venv/bin/python -m pip install -r requirements.txt)
+
+# Bridge (Pflicht)
+pyControl4==2.0.2
+fastapi==0.143.1
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+aiohttp==3.14.5
+RapidFuzz==3.14.6
+cryptography==50.0.2      # HTTPS-Zertifikat (selbstsigniert) für das Browser-Mikrofon im LAN
+
+# Sprachsteuerung c4voice (optional – ohne diese Pakete läuft die Bridge, nur der Sprachdienst nicht)
+numpy==2.4.6
+faster-whisper==1.2.1
+openwakeword==0.6.0
+piper-tts==1.8.0

@@ -1,0 +1,36 @@
+<!-- Vorlage für den Windows-Dienst „c4bridge“ (WinSW 2.12). install.ps1 ersetzt {PROFIL} durch den Benutzerordner
+     dessen, der installiert, und schreibt daraus c4bridge-dienst.xml (die liest WinSW, Name = Name der exe).
+     Der Dienst läuft als SYSTEM. Einstellungen und HTTPS-Zertifikat liegen aber im Benutzerordner – deshalb die
+     festen Pfade unten (sonst sucht die Bridge in C:\Windows\System32\config\systemprofile und erzeugt ein neues
+     Zertifikat, das alle Handys neu bestätigen müssten). -->
+<service>
+  <id>c4bridge</id>
+  <name>c4bridge (Control4-Bridge + Sprachdienst)</name>
+  <description>Web-Oberfläche, Admin und Sprachdienst c4voice für Control4.</description>
+
+  <executable>%BASE%\..\.venv\Scripts\python.exe</executable>
+  <arguments>-m uvicorn c4bridge.app:app --host 0.0.0.0 --port 8080 --no-access-log</arguments>
+  <workingdirectory>%BASE%\..</workingdirectory>
+
+  <env name="C4BRIDGE_CONFIG" value="{PROFIL}\.config\c4bridge\config.env"/>
+  <env name="BRIDGE_SSL_CERT" value="{PROFIL}\.config\c4bridge\bridge.crt"/>
+  <env name="BRIDGE_SSL_KEY" value="{PROFIL}\.config\c4bridge\bridge.key"/>
+  <env name="BRIDGE_SSL_PORT" value="8443"/>
+  <env name="PYTHONIOENCODING" value="utf-8"/>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <!-- Stopp: erst Strg+C (uvicorn fährt sauber herunter), nach 20 s hart; WinSW beendet auch die Kindprozesse
+       (c4voice, Whisper-Dienst) -->
+  <stoptimeout>20 sec</stoptimeout>
+
+  <logpath>%BASE%\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>5120</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>

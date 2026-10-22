@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.venv-*/
+
+# Local secrets and runtime data
+*.env
+!config.example.env
+data/*
+!data/drivers.json
+!data/tts/
+data/tts/*
+!data/tts/qwen_ref_abenteuer.*
+!data/tts/qwen_ref_ruhig.*
+
+# Binaries and models (downloaded separately)
+bin/
+tools/mediamtx
+tools/mediamtx.exe
+service/*.exe
+service/c4bridge-dienst.xml
+service/logs/
+*.crt
+*.key
+*.onnx
+*.gguf

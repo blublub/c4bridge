@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>c4voice · Mikrofon-Test</title>
+<script src="/vendor/icons.js?v=3"></script>
+<script src="/ui/i18n.js"></script>
+<style>
+  :root { --glass: rgba(26,29,36,.82); --glass2: rgba(44,48,58,.6); --line: rgba(255,255,255,.12);
+          --text: #f2f2f4; --muted: #9aa0aa; --blue: #5b9cff; --ok: #46c07a; --err: #ff6b5e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    background-color: #0b0e14;
+    background-image: radial-gradient(120% 90% at 85% -10%, #1c3f74 0%, transparent 55%),
+      radial-gradient(110% 80% at -10% 110%, #14294e 0%, transparent 55%),
+      linear-gradient(170deg, #101724 0%, #0b0e14 60%, #0e1626 100%);
+    background-attachment: fixed; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .ic { display: inline-block; vertical-align: -4px; }
+  .card { width: min(640px, 96vw); background: var(--glass); border: 1px solid var(--line);
+          border-radius: 20px; padding: 26px 28px;
+          backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3); }
+  h1 { font-size: 19px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .modes { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .chip { padding: 8px 14px; border-radius: 999px; background: var(--glass2);
+          border: 1px solid var(--line); font-size: 13px; cursor: pointer; color: var(--text); font: inherit; }
+  .chip.sel { border-color: var(--blue); color: var(--blue); }
+  .micwrap { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  .micbtn { width: 74px; height: 74px; border-radius: 50%; border: 2px solid var(--line);
+    background: var(--glass2); color: var(--text); cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center; transition: .15s; }
+  .micbtn.rec { border-color: var(--err); color: var(--err);
+    box-shadow: 0 0 0 8px rgba(255, 107, 94, .15); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 14px rgba(255, 107, 94, .06); } }
+  .status { flex: 1; color: var(--muted); font-size: 14px; min-width: 0; }
+  .status b { color: var(--text); display: block; }
+  #log { margin-top: 14px; max-height: 300px; overflow-y: auto; font-size: 13.5px; }
+  .entry { padding: 9px 12px; border-radius: 10px; background: var(--glass2);
+           border: 1px solid var(--line); margin-bottom: 8px; white-space: pre-wrap; word-break: break-word; }
+  .entry .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .entry.transcript b { color: var(--blue); }
+  .entry.decision b { color: var(--ok); }
+  .entry.wake b { color: var(--warm, #ffb257); }
+  .entry.error b { color: var(--err); }
+  /* Kompakt, wenn als kleines Popup-Fenster geöffnet (Admin → Sprache → Mikrofon-Test) */
+  @media (max-width: 560px) {
+    body { padding: 10px; align-items: stretch; }
+    .card { width: 100%; padding: 16px; border-radius: 14px; }
+    #log { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>c4voice · Mikrofon-Test</h1>
+  <div class="sub" id="hint">Verbinde mit dem Sprachdienst und rede – Wake-Word: „hey jarvis“. Der Trockenlauf entscheidet nur, das Haus wird nicht geschaltet.</div>
+  <div class="modes">
+    <button class="chip sel" id="m-wake" onclick="setMode('wake')">Wake-Word (dauerhaft)</button>
+    <button class="chip" id="m-ptt" onclick="setMode('ptt')">Push-to-Talk</button>
+    <span class="chip" id="conn" style="cursor:default">nicht verbunden</span>
+  </div>
+  <div class="sub" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">Name dieses Mikrofons
+    <input id="micname" style="flex:1 1 180px;min-width:140px" maxlength="40" onchange="setMicName(this.value)">
+    <span style="opacity:.7">– eindeutig je Gerät (z. B. „Handy Alex“, „Tablet Küche“); die Raumzuordnung im Admin hängt daran</span></div>
+  <div class="micwrap">
+    <button class="micbtn" id="mic" title="Mikrofon starten/stoppen"></button>
+    <div class="status" id="status"><b>Bereit</b>Mikrofon anklicken zum Verbinden</div>
+  </div>
+  <div style="height:6px;background:var(--glass2);border-radius:3px;overflow:hidden">
+    <div id="lvl" style="height:6px;width:0%;background:var(--ok);transition:width .08s"></div>
+  </div>
+  <div id="frames" class="sub" style="margin:4px 0 0"></div>
+  <div class="sub" style="margin:4px 0 0;display:flex;gap:8px;align-items:center">Verstärkung <input type="range" min="1" max="8" step="0.5"
+    style="width:140px" value="1" id="gain" oninput="setGain(+this.value)"><span id="gainv">×1</span>
+    <span style="opacity:.7">– Handy-Mikrofone sind leise; so weit aufdrehen, dass der Balken beim Sprechen gut ausschlägt</span></div>
+  <div id="roominfo" class="sub" style="margin:2px 0 0"></div>
+  <div id="log"></div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+$('#mic').innerHTML = '<svg class="ic" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/></svg>';
+
+let mode = 'wake', ws = null, ac = null, proc = null, stream = null, rec = false;
+const ttsQueue = []; let ttsBusy = false;
+function playNext() {
+  const url = ttsQueue.shift();
+  if (!url) { ttsBusy = false; return; }
+  ttsBusy = true;
+  const a = new Audio(url);
+  a.onended = a.onerror = () => { URL.revokeObjectURL(url); playNext(); };
+  a.play().catch(e => { addLog('error', 'Sprachausgabe', 'Abspielen blockiert: ' + e.message); playNext(); });
+}
+const addLog = (cls, k, txt) => {
+  const d = document.createElement('div');
+  d.className = 'entry ' + cls;
+  d.innerHTML = `<span class="k">${k}</span><br><b></b>`;
+  d.querySelector('b').textContent = txt;
+  $('#log').prepend(d);
+};
+function setMode(m) {
+  mode = m;
+  $('#m-wake').classList.toggle('sel', m === 'wake');
+  $('#m-ptt').classList.toggle('sel', m === 'ptt');
+  $('#hint').textContent = m === 'wake'
+    ? 'Mikrofon an, „hey jarvis“ sagen, dann den Befehl. Im Trockenlauf wird nur entschieden, nicht geschaltet.'
+    : 'Mikrofon an, Button drücken, Befehl sagen, Button wieder drücken.';
+}
+async function toggle() {
+  if (rec) { stop(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    // Browser geben das Mikrofon nur in einem „sicheren Kontext“ frei: https:// oder localhost
+    addLog('error', 'Mikrofon', window.isSecureContext === false
+      ? `Der Browser gibt das Mikrofon über http://${location.host} nicht frei (nur unter https:// oder localhost). `
+        + 'Abhilfe: Bridge per HTTPS erreichen oder in Chrome chrome://flags/#unsafely-treat-insecure-origin-as-secure '
+        + `mit http://${location.host} freischalten.`
+      : 'Dieser Browser hat keinen Mikrofon-Zugriff (getUserMedia fehlt) – Chrome/Edge/Firefox verwenden.');
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  } catch (e) {
+    addLog('error', 'Mikrofon', 'Zugriff verweigert/fehlgeschlagen: ' + e.message
+      + ' — ggf. in einem normalen Browser-Fenster (Chrome/Edge) öffnen.');
+    return;
+  }
+  // über die Bridge (Login gilt mit) – c4voice selbst ist nur noch lokal erreichbar
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/voice/mic`);
+  ws.binaryType = 'arraybuffer';
+  ws.onerror = () => addLog('error', 'Verbindung', 'WebSocket-Fehler – angemeldet? läuft c4voice? (Admin → Config → Sprache)');
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'hello', client: micName(), push_to_talk: mode === 'ptt' }));
+    $('#conn').textContent = 'verbunden';
+  };
+  ws.onmessage = m => {
+    if (typeof m.data !== 'string') {           // Sprachausgabe (WAV) nach einer {"type":"tts"}-Meldung
+      ttsQueue.push(URL.createObjectURL(new Blob([m.data], { type: 'audio/wav' })));
+      if (!ttsBusy) playNext();                  // nacheinander („Moment, ich schaue nach." → Antwort)
+      return;
+    }
+    const j = JSON.parse(m.data);
+    if (j.type === 'ready') {
+      startAudio();
+      addLog(j.dry_run ? 'transcript' : 'error', 'Modus', (j.dry_run
+        ? 'Trockenlauf AN – Befehle werden nur simuliert'
+        : 'Trockenlauf AUS – Befehle schalten ECHT im Haus') + (j.tts ? ' · Sprachausgabe an' : ''));
+      // Raum-Zuordnung des Mikrofons zeigen (Grundlage für Befehle ohne Raumnennung)
+      const ri = document.getElementById('roominfo');
+      if (ri) {
+        ri.textContent = '';
+        const b = document.createElement('span');
+        if (j.room && j.room.length) {
+          b.style.color = 'var(--ok)';
+          b.textContent = '✓ Mikrofon zugeordnet: ' + j.room.join(' + ');
+        } else {
+          b.style.color = 'var(--err)';
+          b.textContent = '⚠ kein Raum zugeordnet – Admin → Config → Sprache → Mikrofone & Räume (Befehle ohne Raumnennung gehen sonst nicht)';
+        }
+        ri.appendChild(b);
+      }
+    }
+    else if (j.type === 'wake') { addLog('wake', 'Wake-Word', 'erkannt (' + j.score + ') – jetzt sprechen'); setStatus('Ich höre zu …', true); }
+    else if (j.type === 'state') setStatus({ stt: 'transkribiere …', llm: 'denkt nach …', exec: 'führt aus …', listening: 'aufnahme …' }[j.stage] || j.stage, true);
+    else if (j.type === 'transcript') addLog('transcript', 'Erkannt', (j.text || '(Stille)') + (j.raw && j.raw !== j.text ? `  [gehört: ${j.raw}]` : ''));
+    else if (j.type === 'wake_only') { addLog('wake', 'Wake-Word', 'nur das Aktivierungswort gehört – jetzt den Befehl sprechen (6 s)'); setStatus('Ich höre zu …', true); }
+    else if (j.type === 'decision') { addLog('decision', j.dry_run ? 'Entscheidung (Trockenlauf)' : 'Ausgeführt', j.text); setStatus('Bereit', rec); }
+    else if (j.type === 'error') addLog('error', 'Fehler', j.message);
+    else if (j.type === 'tts') addLog('wake', 'Gesprochen (' + j.seconds + ' s)', j.text);
+    else if (j.type === 'tts_error') addLog('error', 'Sprachausgabe', j.message);
+    else if (j.type === 'question') setStatus('Rückfrage – einfach antworten (ohne Wake-Word, 8 s)', true);
+  };
+  ws.onclose = () => { $('#conn').textContent = 'getrennt'; stop(); };
+  rec = true; $('#mic').classList.add('rec');
+  setStatus('verbinde …', true);
+}
+// Mikrofon-Name: je Gerät gespeichert; Vorgabe eindeutig („Mikrofon 3f9a“) – nicht mehr „voicetest-Linux armv81“ für alle
+function micName() {
+  let n = '';
+  try { n = (localStorage.getItem('vt_name') || '').trim(); } catch { }
+  if (!n) {
+    n = 'Mikrofon ' + Math.random().toString(16).slice(2, 6);
+    try { localStorage.setItem('vt_name', n); } catch { }
+  }
+  return n;
+}
+function setMicName(v) {
+  v = String(v || '').trim().slice(0, 40);
+  if (!v) return;
+  try { localStorage.setItem('vt_name', v); } catch { }
+  addLog('transcript', 'Name', `Mikrofon heißt jetzt „${v}“ – im Admin (Sprache › Mikrofone & Räume) einem Raum zuordnen; gilt ab dem nächsten Verbinden.`);
+}
+document.addEventListener('DOMContentLoaded', () => { const el = document.getElementById('micname'); if (el) el.value = micName(); });
+// Verstärkung (×1 … ×8): Handy-/Tablet-Mikrofone sind leise – Vorgabe ×3 auf Touch-Geräten, ×1 am PC; wird gemerkt
+const isTouch = navigator.maxTouchPoints > 0;
+function gainVal() { const v = parseFloat(localStorage.getItem('vt_gain') || ''); return v >= 1 && v <= 8 ? v : (isTouch ? 3 : 1); }
+function setGain(v) { localStorage.setItem('vt_gain', String(v)); const g = document.getElementById('gainv'); if (g) g.textContent = '×' + v; }
+document.addEventListener('DOMContentLoaded', () => { const r = document.getElementById('gain'); if (r) { r.value = gainVal(); setGain(gainVal()); } });
+function startAudio() {
+  ac = new AudioContext({ sampleRate: 16000 });
+  const src = ac.createMediaStreamSource(stream);
+  proc = ac.createScriptProcessor(4096, 1, 1);
+  let frames = 0, peak = 0;
+  proc.onaudioprocess = e => {
+    if (!ws || ws.readyState !== 1) return;
+    const f = e.inputBuffer.getChannelData(0), g = gainVal();
+    const i16 = new Int16Array(f.length);
+    let sum = 0;
+    for (let i = 0; i < f.length; i++) {
+      const v = Math.max(-1, Math.min(1, f[i] * g));
+      i16[i] = v * 32767;
+      sum += v * v;
+    }
+    ws.send(i16.buffer);
+    frames++;
+    peak = Math.max(peak * 0.85, Math.sqrt(sum / f.length));
+    $('#lvl').style.width = Math.min(100, peak * 260) + '%';
+    if (frames % 25 === 0) $('#frames').textContent = `${frames} Audio-Pakete gesendet`;
+  };
+  src.connect(proc); proc.connect(ac.destination);
+  if (mode === 'ptt') ws.send(JSON.stringify({ type: 'start' }));   // Aufnahme jetzt offiziell starten
+  setStatus(mode === 'wake' ? 'Höre auf „hey jarvis“ …' : 'Nimm auf – beim Sprechen roten Button drücken zum Senden', true);
+}
+function stop() {
+  rec = false; $('#mic').classList.remove('rec');
+  try { if (ws && ws.readyState === 1 && mode === 'ptt') ws.send(JSON.stringify({ type: 'stop' })); } catch { }
+  try { stream && stream.getTracks().forEach(t => t.stop()); } catch { }
+  try { proc && proc.disconnect(); ac && ac.close(); } catch { }
+  try { ws && ws.close(); } catch { }
+  stream = ac = proc = ws = null;
+  setStatus('Mikrofon anklicken zum Verbinden', false);
+  $('#conn').textContent = 'nicht verbunden';
+  $('#lvl').style.width = '0%';
+}
+function setStatus(txt, active) { $('#status').innerHTML = `<b>${active ? '● aktiv' : 'Bereit'}</b>`; $('#status').append(txt); }
+$('#mic').onclick = toggle;
+</script>
+</body>
+</html>

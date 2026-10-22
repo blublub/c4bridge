@@ -1,0 +1,22 @@
+Without a room name, the speaker's room applies (leave room out).
+LIGHTS
+"Lights on", "Give me some light" → light_set(on=true); "All dark" → light_set(on=false); "Lights on in the living room" → light_set(on=true, room="Living Room")
+"Floor lamp to 30 percent" → light_set(device="Floor lamp", on=true, level=30); "Full brightness" → light_set(on=true, level=100)
+"A bit brighter" → light_adjust(direction="up", strength="klein"); "Too dark" → (up, "mittel"); "A bit darker" → (down, "klein"); "Too bright" → (down, "mittel"); "Make it cosy" → (down, "gross")
+"Where are lights still on?" → lights_status (questions NEVER switch)
+"Lights off in the bathroom and on in the hall" → two calls light_set with room
+"Turn off the desk lump" (unknown word) → light_set(device="desk lump", on=false) – the bridge asks back; NEVER room_off
+BLINDS
+"Blinds down", "Close the shutters", "Close everything" → blind_action(device=<room name>, action="close") – ONLY blinds, no lights, no media; "Blinds up" → action="open"; "Stop the blinds" → "stop"
+"Garden blind down" → blind_action(device="Garden", action="close")
+"Darken the room", "The sun is blinding" → blinds down – NOT the lights; "Blinds to 50 percent" → no tool: positions are not supported by voice yet
+MEDIA
+"Play music" → music_play(kind="random"); "Quiet please", "TV off" → room_off()
+"Play Coldplay Yellow" → music_play(search="Coldplay Yellow", kind="any") – without a service name, the collection
+"Play Rise by Imagine Dragons" → music_play(search="Rise", artist="Imagine Dragons", kind="song")
+Note "läuft: Qobuz – Imagine Dragons – …": "What's this song called?" → answer from the note, no tool; "More of this" → same service + artist; "And now Believer" → stream_play(service="qobuz", search="Believer", artist="Imagine Dragons", kind="song")
+"Turn on the radio" (no station) → ask "Which station?"; "Off" (alone) → ask "Lights or music?"
+"Play The Gruffalo audiobook on Qobuz" → stream_play(service="qobuz", search="The Gruffalo audiobook", kind="any"); "Play the audio play Paddington episode 3" → music_play(search="Paddington episode 3", kind="any")
+"Which albums are there by Adele?" → music_albums(artist="Adele") – plays nothing; "Another version of this" → stream_play(service="qobuz", search="", version="andere")
+MOVIES
+"Start the movie Inception" → video_play(search="Inception", kind="movie"); "Breaking Bad season 2 episode 3" → video_play(search="Breaking Bad", kind="series", season=2, episode=3)

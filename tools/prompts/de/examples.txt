@@ -1,0 +1,22 @@
+Ohne Raumnennung gilt der Raum des Sprechers (room weglassen).
+LICHT
+„Licht an“, „Mach mal Licht“ → light_set(on=true); „Alles dunkel“ → light_set(on=false); „Licht im Wohnzimmer an“ → light_set(on=true, room="Wohnzimmer")
+„Stehlampe auf 30 Prozent“ → light_set(device="Stehlampe", on=true, level=30); „Volle Helligkeit“ → light_set(on=true, level=100)
+„Etwas heller“ → light_adjust(direction="up", strength="klein"); „Zu dunkel“ → (up, "mittel"); „Etwas dunkler“ → (down, "klein"); „Zu hell“ → (down, "mittel"); „Mach es gemütlich“ → (down, "gross")
+„Wo brennt noch Licht?“ → lights_status (Fragen schalten NIE)
+„Licht im Bad aus und im Flur an“ → zwei Aufrufe light_set mit room
+„Mach die Schreibbestände aus“ (unbekanntes Wort) → light_set(device="Schreibbestände", on=false) – die Bridge fragt nach; NIE room_off
+ROLLLÄDEN
+„Rollläden runter“, „Rollos zu“, „Mach dicht“, „Mach alles zu“ → blind_action(device=<Raumname>, action="close") – NUR Rollläden, kein Licht, keine Medien; „Rollläden hoch“ → action="open"; „Rollladen stopp“ → "stop"
+„Rollladen Garten runter“ → blind_action(device="Garten", action="close")
+„Verdunkeln“, „Es blendet“ → Rollläden zu – NICHT das Licht; „Rollladen auf 50 Prozent“ → kein Werkzeug: Positionen gehen per Sprache noch nicht
+MEDIEN
+„Spiel Musik“ → music_play(kind="random"); „Ruhe bitte“, „Fernseher aus“ → room_off()
+„Spiel mal Coldplay Yellow“ → music_play(search="Coldplay Yellow", kind="any") – ohne Dienstnennung die Sammlung
+„Spiel von den Imagine Dragons Rise“ → music_play(search="Rise", artist="Imagine Dragons", kind="song")
+Notiz „läuft: Qobuz – Imagine Dragons – …“: „Wie heißt das Lied?“ → aus der Notiz antworten, kein Werkzeug; „Mehr davon“ → gleicher Dienst + Interpret; „Und jetzt Believer“ → stream_play(service="qobuz", search="Believer", artist="Imagine Dragons", kind="song")
+„Mach Radio an“ (ohne Sender) → fragen „Welcher Sender?“; „Aus“ (allein) → fragen „Licht oder Musik?“
+„Spiel über Qobuz Bibi Blocksberg Folge 7“ → stream_play(service="qobuz", search="Bibi Blocksberg Folge 7", kind="any"); „Spiel das Hörspiel Benjamin Blümchen Folge 12“ → music_play(search="Benjamin Blümchen Folge 12", kind="any")
+„Welche Alben gibt es von Adele?“ → music_albums(artist="Adele") – spielt nichts; „Eine andere Version davon“ → stream_play(service="qobuz", search="", version="andere")
+FILME
+„Starte den Film Inception“ → video_play(search="Inception", kind="movie"); „Breaking Bad Staffel 2 Folge 3“ → video_play(search="Breaking Bad", kind="series", season=2, episode=3)

@@ -1,0 +1,1777 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>c4bridge · Admin</title>
+<script src="/vendor/icons.js?v=3"></script>
+<script src="/ui/i18n.js"></script>
+<script src="/ui/learn.js" defer></script>
+<style>
+  /* ---- Design-Tokens: X4-Look wie die Bedienoberfläche (dunkel, Glas, blauer Akzent) */
+  :root {
+    --bg: #0b0e14; --panel: rgba(26, 29, 36, .82); --field: rgba(44, 48, 58, .6);
+    --text: #f2f2f4; --muted: #a6adb8;
+    --line: rgba(255, 255, 255, .12); --accent: #5b9cff; --accent-soft: rgba(91, 156, 255, .16);
+    --ok: #46c07a; --warn: #e0a23c; --err: #ff6b5e;
+    --h: 36px; --r: 16px; --rs: 8px;
+  }
+  * { box-sizing: border-box; }
+  .ic { display: inline-block; vertical-align: -3px; }
+  .geo { position: relative; display: inline-block; }
+  .geo-dd { position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; z-index: 30; max-height: 280px; overflow: auto;
+            background: #1a1e27; border: 1px solid var(--line); border-radius: var(--rs); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  .geo-dd div { padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+  .geo-dd div span { color: var(--muted); font-size: 12px; }
+  .geo-dd div:hover, .geo-dd div.sel { background: var(--accent-soft); }
+  .geo-dd .none { color: var(--muted); cursor: default; }
+  body { margin: 0; color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+         /* gleiche Control4-navy-Basis mit blauen Verlaufs-Lichtern wie Startseite/OS3 */
+         background-color: #0b0e14;
+         background-image:
+           radial-gradient(120% 90% at 85% -10%, #1c3f74 0%, transparent 55%),
+           radial-gradient(110% 80% at -10% 110%, #14294e 0%, transparent 55%),
+           linear-gradient(170deg, #101724 0%, #0b0e14 60%, #0e1626 100%);
+         background-attachment: fixed; }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .18); border-radius: 5px; }
+
+  /* ---- Kopfzeile / Tabs -------------------------------------------------------- */
+  header { display: flex; align-items: center; gap: 20px; padding: 10px 20px; flex-wrap: wrap;
+           background: rgba(20, 23, 30, .85); border-bottom: 1px solid var(--line);
+           backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
+           position: sticky; top: 0; z-index: 5; }
+  h1 { font-size: 16px; margin: 0; font-weight: 700; }
+  h1 b { color: var(--accent); font-weight: 700; }
+  nav { display: flex; gap: 2px; flex-wrap: wrap; }
+  nav button { background: none; border: 0; padding: 9px 13px; border-radius: var(--rs); color: var(--muted);
+               font: inherit; font-weight: 500; cursor: pointer; }
+  nav button:hover { color: var(--text); background: var(--field); }
+  nav button.on { color: var(--accent); background: var(--accent-soft); }
+  header .act { margin-left: auto; }
+  [hidden] { display: none !important; }   /* .act/.panel setzen display – hidden muss gewinnen */
+  header .who { color: var(--muted); font-size: 13px; }
+  header .who + .act { margin-left: 0; }
+  .drybar { padding: 10px 12px; border-radius: var(--rs); background: rgba(70,192,122,.10); border: 1px solid rgba(70,192,122,.35); }
+  .drybar.live { background: rgba(255,107,94,.12); border-color: rgba(255,107,94,.55); }
+  .drybar.live b { color: var(--err); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 32px; }
+
+  /* ---- Flächen ------------------------------------------------------------------ */
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+           padding: 20px; margin-bottom: 16px;
+           backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3); }
+  .card { background: rgba(15, 18, 25, .5); border: 1px solid var(--line); border-radius: 10px;
+          padding: 14px 16px; }
+  h2.sec { font-size: 12px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase;
+           letter-spacing: .05em; font-weight: 600; }
+  .sect { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .sect > h2.sec:first-child { margin-top: 0; }
+  .hint { font-size: 13px; color: var(--muted); }
+  .muted { color: var(--muted); } .small { font-size: 13px; }
+
+  /* ---- Eingaben: ALLE Typen gleiche Höhe/Radius/Farben -------------------------- */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), select {
+    height: var(--h); padding: 0 10px; border: 1px solid rgba(255, 255, 255, .2); border-radius: var(--rs);
+    background: var(--field); color: var(--text); min-width: 0; font: inherit;
+  }
+  input::placeholder { color: var(--muted); }
+  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  input[type=number] { width: 110px; }
+  input[type=checkbox], input[type=radio] { width: 16px; height: 16px; accent-color: var(--accent); }
+  input[type=range] { accent-color: var(--accent); }
+
+  /* ---- Buttons: eine Höhe, drei Varianten --------------------------------------- */
+  .act { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+         height: var(--h); padding: 0 14px; border-radius: var(--rs);
+         border: 1px solid var(--line); background: var(--field); color: var(--text);
+         font: inherit; font-weight: 500; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .act:hover { border-color: rgba(255, 255, 255, .35); color: var(--text); }
+  .act:disabled { opacity: .5; cursor: default; }
+  .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .primary:hover { color: #fff; filter: brightness(1.08); }
+  .danger { color: var(--err); }
+  .danger:hover { border-color: var(--err); color: var(--err); }
+  .ib { width: 32px; height: 32px; padding: 0; border-radius: 7px; font-size: 13px; }
+
+  /* ---- Zeilen / Formulare / Werkzeugleisten ------------------------------------- */
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .row:last-child { margin-bottom: 0; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .toolbar input[type=search] { flex: 1 1 240px; max-width: 340px; width: auto; }
+  .toolbar select { width: auto; }
+  .spacer { margin-left: auto; }
+  .frm { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px 16px; align-items: center; }
+  .frm .fl { color: var(--muted); font-size: 14px; }
+  .frm .ctr { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+  .frm .ctr > input:not([type=checkbox]):not([type=number]):not([type=range]):first-child { flex: 1 1 200px; width: auto; }
+  details.adv { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  details.adv summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+  details.adv[open] summary { margin-bottom: 8px; }
+  details.hintbox { background: rgba(122,162,255,.10); border-color: rgba(122,162,255,.45); }
+  details.hintbox summary { color: var(--text, inherit); font-weight: 600; }
+  details.hintbox textarea { width: 100%; box-sizing: border-box; background: rgba(122,162,255,.08); }
+  details.adv textarea { width: 100%; box-sizing: border-box; margin: 6px 0; font: 12.5px/1.45 ui-monospace, Consolas, monospace;
+    background: var(--field); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px; resize: vertical; }
+  details.adv .fl { display: block; margin-top: 10px; }
+  .savebar { position: sticky; top: 64px; z-index: 6; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin: 0 0 16px; padding: 10px 12px; border-radius: 12px; background: rgba(20,24,32,.94); border: 1px solid var(--line); }
+  .sect .savebar { margin-top: 4px; }
+  .stickybar { position: sticky; bottom: 0; z-index: 5; background: linear-gradient(transparent, var(--bg, #10131b) 30%); padding-top: 18px !important; }
+  @media (max-width: 640px) { .frm { grid-template-columns: 1fr; } .frm .fl { margin-bottom: -6px; } }
+
+  /* ---- Segmented Control (Config-Untermenüs) ------------------------------------ */
+  .seg { display: inline-flex; background: rgba(15, 18, 25, .5); border: 1px solid var(--line);
+         border-radius: 10px; padding: 3px; gap: 2px; flex-wrap: wrap; margin-bottom: 16px; }
+  .seg button { border: 0; background: none; color: var(--muted); font: inherit; font-weight: 500;
+                padding: 7px 14px; border-radius: 7px; cursor: pointer; }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--panel); color: var(--accent); }
+
+  /* ---- Einrichtung: Menü links; ein Bereich mit Unterpunkten ersetzt die Liste (oben „Zurück“) ---------------- */
+  main:has(#t-config:not([hidden])) { max-width: 1340px; }
+  .cfgwrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: start; }
+  .cfgnav { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 2px; padding: 8px;
+            background: rgba(15, 18, 25, .5); border: 1px solid var(--line); border-radius: 12px; }
+  .cfgnav button { border: 0; background: none; color: var(--muted); font: inherit; font-weight: 500; text-align: left;
+                   padding: 9px 12px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .cfgnav button:hover { color: var(--text); background: rgba(255, 255, 255, .04); }
+  .cfgnav button.on { background: var(--panel); color: var(--accent); }
+  .cfgnav button .more { margin-left: auto; opacity: .6; }
+  .cfgnav .back { color: var(--text); border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; margin-bottom: 4px; }
+  .cfgnav .navh { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 6px 12px 4px; }
+  @media (max-width: 800px) { .cfgwrap { grid-template-columns: 1fr; }
+    .cfgnav { position: static; flex-direction: row; flex-wrap: wrap; } .cfgnav .navh { display: none; } }
+
+  /* ---- Status-Kacheln ------------------------------------------------------------ */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .stat { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .stat .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .stat .v { font-size: 20px; font-weight: 650; margin: 3px 0 2px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  .ok { background: var(--ok); } .bad { background: var(--err); }
+  .dot.wait { background: var(--amber, #ffd166); }
+
+  /* ---- Tabellen ------------------------------------------------------------------ */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--muted); font-size: 12px; font-weight: 600; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--field);
+         border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  /* Wake-Modell-Chips: grün = geladen, rot = Fehler, gelb = lädt beim ersten Audio */
+  .wchip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 999px;
+           border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .wchip.good { color: var(--ok); border-color: var(--ok); }
+  .wchip.bad { color: var(--err); border-color: var(--err); }
+  .wchip.wait { color: var(--warn); border-color: var(--warn); }
+  .scroll { overflow-x: auto; }
+  .dgrp { border-top: 1px solid var(--line); }
+  .dgh { display: flex; gap: 8px; align-items: baseline; width: 100%; padding: 10px 4px; background: none; border: 0;
+         color: var(--text); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+  .dgh:hover { color: var(--accent); }
+  .dgh .tw { width: 12px; color: var(--muted); }
+  code { font-size: 12.5px; color: #cfe1ff; }
+  #t-devices a, .learn a { color: var(--accent); text-decoration: none; } #t-devices a:hover, .learn a:hover { text-decoration: underline; }
+  #t-devices td input[type=text] { width: 100%; min-width: 120px; } #t-devices td select { min-width: 0; width: 110px; }
+  #t-devices td, #t-devices th { padding-left: 6px; padding-right: 6px; }
+  .learn { border-color: rgba(91, 156, 255, .45); }
+  .learn .lsub { font-size: 14px; margin: 16px 0 6px; color: var(--muted); font-weight: 600; }
+  .learn .lmap { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 12.5px; }
+  .learn .lmap select { height: 28px; padding: 0 6px; }
+  .learn td, .learn th { vertical-align: top; }
+  .learn tr.lchg td { background: rgba(70, 192, 122, .07); }
+
+  /* ---- Schalter ------------------------------------------------------------------- */
+  .sw { position: relative; display: inline-block; width: 44px; height: 25px; flex: 0 0 auto; }
+  .sw input { display: none; }
+  .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, .16); transition: .18s; cursor: pointer; }
+  .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 19px; height: 19px;
+                 border-radius: 50%; background: #fff; transition: .18s; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+  .sw input:checked + i { background: var(--accent); }
+  .sw input:checked + i::after { left: 22px; }
+
+  /* ---- Log ------------------------------------------------------------------------- */
+  #log { font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap;
+         max-height: 70vh; overflow: auto; background: rgba(10, 12, 17, .65);
+         border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .l-WARN { color: var(--warn); } .l-ERROR { color: var(--err); }
+
+  /* ---- Projektdaten (Baum): zwei unabhängig scrollende Spalten --------------------- */
+  .treewrap { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 16px; align-items: start; }
+  .treewrap > .panel { max-height: calc(100vh - 160px); overflow-y: auto; position: sticky; top: 76px; }
+  @media (max-width: 800px) { .treewrap { grid-template-columns: 1fr; }
+    .treewrap > .panel { position: static; max-height: none; }
+    .treewrap > .panel:first-child { max-height: 45vh; } }
+  .treelist { max-height: 72vh; overflow: auto; margin-top: 8px; }
+  .tflo { display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+          font-weight: 600; margin: 14px 0 2px; color: var(--muted); font-size: 12px;
+          text-transform: uppercase; letter-spacing: .04em; font-family: inherit; padding: 4px 0; }
+  .tflo:hover, .troom:hover { color: var(--text); }
+  .tw { display: inline-block; width: 14px; color: var(--accent); }
+  .troom { display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+           margin: 6px 0 2px 6px; font-weight: 600; font-size: 14px; padding: 4px 0; font-family: inherit;
+           color: var(--text); }
+  .troom .small { font-weight: 400; }
+  .tdev { display: block; width: 100%; text-align: left; background: none; border: 0;
+          border-radius: var(--rs); padding: 5px 8px; cursor: pointer; font: inherit; color: var(--text); }
+  .tdev:hover { background: var(--field); }
+  .tdev.sel { background: var(--accent); color: #fff; }
+tr.poll > td { background: rgba(224,162,60,.16); }
+.tag.ok { color: var(--ok); border-color: var(--ok); } .tag.warn { color: var(--warn); border-color: var(--warn); }
+.pushbox { display: grid; gap: 6px; padding: 8px 4px 12px; font-size: 13px; }
+.pushbox > div > .hint:first-child { display: inline-block; min-width: 130px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>c4<b>bridge</b> · Admin</h1>
+  <nav id="nav">
+    <button data-t="status" class="on">Status</button>
+    <button data-t="config">Einrichtung</button>
+    <button data-t="tree">Projektdaten</button>
+    <button data-t="log">Log</button>
+  </nav>
+  <a href="/" class="act" title="Zur Bedienoberfläche">&#8962; Start</a>
+  <button class="act" data-notr title="Deutsch / English" onclick="c4SetLang(C4LANG === 'en' ? 'de' : 'en')"><script>document.write(C4LANG === 'en' ? 'DE' : 'EN')</script></button>
+  <span class="who" id="whoami"></span>
+  <button class="act" id="logoutbtn" onclick="logout()" hidden>Abmelden</button>
+</header>
+<main>
+  <section id="t-status"></section>
+  <section id="t-media" hidden></section>
+  <section id="t-log" hidden><div class="panel"><div id="log"></div></div></section>
+  <section id="t-tree" hidden></section>
+  <section id="t-config" hidden></section>
+</main>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const api = (path, opts) => fetch(path, opts).then(r => {
+  if (r.status === 401) { location.href = '/login?next=/admin'; throw new Error('nicht angemeldet'); }
+  return r.ok ? r.json() : r.text().then(t => { let m = t; try { m = JSON.parse(t).detail || t; } catch { } throw new Error(m); });
+});
+async function logout() { await post('/api/logout'); location.href = '/login'; }
+fetch('/api/me').then(r => r.json()).then(m => {
+  if (!m.authenticated) return;
+  $('#whoami').textContent = m.open_mode ? '⚠ kein Login eingerichtet (offen im Netz)' : `angemeldet: ${m.user} (${m.role})`;
+  $('#logoutbtn').hidden = !!m.open_mode;
+});
+const put = (path, body) => api(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const post = (path, body) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ago = ts => ts ? new Date(ts * 1000).toLocaleString('de-DE') : '–';
+
+// ---- tabs
+let current = 'status';
+document.querySelectorAll('#nav button').forEach(b => b.onclick = () => show(b.dataset.t));
+function show(t) {
+  current = t;
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  ['status', 'media', 'log', 'config', 'tree'].forEach(x => $('#t-' + x).hidden = x !== t);
+  if (t === 'status') loadStatus();
+  if (t === 'tree') { loadTree(); $('#t-media').hidden = false; renderMedia(); }
+  if (t === 'config') loadConfig();
+}
+
+// ---- status
+async function loadStatus() {
+  const s = await api('/api/status'), c = s.control4;
+  const html = `<div class="grid">
+      <div class="stat"><div class="k">Control4</div>
+        <div class="v"><span class="dot ${c.connected ? 'ok' : 'bad'}"></span>${c.connected ? 'verbunden' : (c.configured ? 'getrennt' : 'nicht konfiguriert')}</div>
+        <div class="hint">${esc(c.controller)} ${esc(c.ip)}</div></div>
+      <div class="stat"><div class="k">Token läuft ab in</div><div class="v">${Math.round(c.token_expires_in / 60)} min</div>
+        <div class="hint">Login ${ago(c.last_login)}</div></div>
+      <div class="stat"><div class="k">Räume / Geräte</div><div class="v">${s.inventory.rooms} / ${s.inventory.devices}</div>
+        <div class="hint">Import ${ago(s.inventory.imported_at)}</div></div>
+      <div class="stat"><div class="k">Musik</div><div class="v">${s.media.albums} Alben · ${s.media.songs} Titel</div>
+        <div class="hint">${s.media.loading ? `lädt ${s.media.progress[0]}/${s.media.progress[1]}` : 'Stand ' + ago(s.media.loaded_at)}</div></div>
+    </div>
+    ${c.last_error ? `<p class="small" style="color:var(--err);margin-bottom:0">${esc(c.last_error)}</p>` : ''}`;
+  if (!$('#st-grid')) $('#t-status').innerHTML = `<div class="panel" id="st-grid"></div>
+    <div class="panel toolbar" style="margin-bottom:0">
+      <button class="act primary" onclick="refresh('inventory')">Geräte neu importieren</button>
+      <button class="act" onclick="refresh('media')">Musikbibliothek neu laden</button>
+      <span class="hint spacer">BluOS, KODI → Einrichtung › Module · Geräte → Einrichtung › Geräte</span>
+    </div>`;
+  const g = $('#st-grid');
+  if (g.dataset.sig !== html) { g.dataset.sig = html; g.innerHTML = html; }
+}
+
+// ---- BluOS: Selbstkonfiguration (Player ↔ Control4-Treiber ↔ Raum, Musikquellen, Hinweise)
+async function loadBlu(btn) {
+  const el = $('#blu'); if (!el) return;
+  let b;
+  try { b = btn ? await post('/api/bluos/refresh') : await api('/api/bluos/players'); }
+  catch (e) { el.innerHTML = `<span class="hint">BluOS: ${esc(e.message)}</span>`; return; }
+  const devs = (b.devices || []).slice().sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+  if (!devs.length && !(b.drivers || []).length) { el.hidden = true; return; }
+  const rooms = Object.entries(b.rooms || {}).sort((x, y) => (x[1].room || '').localeCompare(y[1].room || ''));
+  const svcName = id => (b.services[id] || {}).name || id;
+  const keyTxt = k => String(k || '').replace(/:$/, '').replace('LocalMusic', 'Bibliothek').replace(/^BluOS$/, 'Playlists');
+  const drv = mac => (b.drivers || []).find(x => x.mac === mac);
+  el.innerHTML = `
+    <div class="toolbar"><h2 class="sec" style="margin:0">BluOS-Player (automatisch erkannt)</h2>
+      <span class="hint">Stand ${ago(b.updated)}</span>
+      <button class="act spacer" onclick="this.disabled=true;this.textContent='erkenne …';loadBlu(this)">Neu erkennen</button></div>
+    ${(b.warnings || []).length ? `<div class="pushbox" style="margin:8px 0"><b>Hinweise</b><ul style="margin:6px 0 0 18px;padding:0">
+      ${b.warnings.map(w => `<li class="small">${esc(w)}</li>`).join('')}</ul></div>` : ''}
+    <div class="scroll"><table>
+      <tr><th>Raum</th><th>Player</th><th>Zuordnung</th><th>Lautstärke</th><th>Control4-Quellen → BluOS-Dienst</th></tr>
+      ${rooms.map(([rid, r]) => `<tr><td>${esc(r.room || rid)}<div class="hint">#${rid}</div></td>
+        <td><span class="dot ${r.ip ? 'ok' : 'bad'}"></span>${esc(r.name || r.c4_name || '–')}<div class="hint">${esc(r.model || '')} ${esc(r.ip || 'nicht erreichbar')}</div></td>
+        <td><span class="tag">${esc(r.how || '')}</span></td>
+        <td>${r.fixed_volume ? 'fest (Verstärker)' : 'am Player'}</td>
+        <td class="small">${Object.entries(r.sources || {}).map(([id, k]) => `${esc(svcName(id))} → ${esc(keyTxt(k))}`).join('<br>') || '–'}</td></tr>`).join('')}
+    </table></div>
+    <div class="scroll" style="margin-top:12px"><table>
+      <tr><th>Player</th><th>Modell</th><th>IP / MAC</th><th>Firmware</th><th>Dienste und Eingänge am Player</th><th>Control4-Treiber</th></tr>
+      ${devs.map(d => { const x = drv(d.mac); return `<tr><td><span class="dot ${d.ok ? 'ok' : 'bad'}"></span>${esc(d.name)}</td>
+        <td>${esc(d.brand || '')} ${esc(d.model_name || d.model || '')}${d.fixed_volume ? '<div class="hint">feste Lautstärke</div>' : ''}</td>
+        <td>${esc(d.ip)}<div class="hint">${esc(d.mac)}</div></td><td>${esc(d.version || '')}</td>
+        <td class="small">${(d.services || []).map(s => esc(s.text)).join(', ')}${(d.inputs || []).length ? '<br>' + d.inputs.map(i => esc(i.text)).join(', ') : ''}</td>
+        <td class="small">${x ? `#${x.driver_id} „${esc(x.c4_name)}“<div class="hint">über ${esc(x.how_ip)}</div>` : '–'}</td></tr>`; }).join('')}
+      ${(b.drivers || []).filter(x => !x.ip).map(x => `<tr><td><span class="dot bad"></span>${esc(x.c4_name)}</td><td>${esc(x.c4_model || '')}</td>
+        <td>${esc(x.c4_address || '–')}<div class="hint">${esc(x.c4_mac || '')}</div></td><td></td><td class="small">nicht erreichbar</td>
+        <td class="small">#${x.driver_id}</td></tr>`).join('')}
+    </table></div>
+    <p class="hint" style="margin-bottom:0">Nur lesend: Player per mDNS und Control4-Adressen, Zuordnung über MAC; Räume über die Audio-Endpunkte in Composer.</p>`;
+}
+async function loadKodi(btn) {
+  const el = $('#kodi'); if (!el) return;
+  let k;
+  try { k = btn ? await post('/api/kodi/refresh') : await api('/api/kodi'); }
+  catch (e) { el.innerHTML = `<span class="hint">KODI: ${esc(e.message)}</span>`; return; }
+  if (!(k.players || []).length) { el.hidden = true; return; }
+  const live = l => !l ? '–' : l.state === 'stop' ? 'gestoppt' : `${l.state === 'pause' ? 'Pause' : 'läuft'}: ${esc(l.title || '')}${l.subtitle ? ' · ' + esc(l.subtitle) : ''}`;
+  el.innerHTML = `
+    <div class="toolbar"><h2 class="sec" style="margin:0">KODI (automatisch erkannt)</h2>
+      <span class="hint">Stand ${ago(k.updated)}</span>
+      <button class="act spacer" onclick="this.disabled=true;this.textContent='erkenne …';loadKodi(this)">Neu erkennen</button></div>
+    ${(k.warnings || []).length ? `<div class="pushbox" style="margin:8px 0"><b>Hinweise</b><ul style="margin:6px 0 0 18px;padding:0">
+      ${k.warnings.map(w => `<li class="small">${esc(w)}</li>`).join('')}</ul></div>` : ''}
+    <div class="scroll"><table>
+      <tr><th>KODI</th><th>Adresse</th><th>Version</th><th>Push</th><th>Wiedergabe</th><th>Bereiche (Control4-Quelle)</th><th>Control4-Treiber</th></tr>
+      ${k.players.map(p => `<tr><td><span class="dot ${p.ok ? 'ok' : 'bad'}"></span>${esc(p.name)}</td>
+        <td>${esc(p.host)}:${p.port}</td><td>${esc(p.version || '–')}</td>
+        <td><span class="tag">${p.ws ? 'KODI-WebSocket' : 'nur Control4'}</span></td>
+        <td class="small">${live(p.live)}</td>
+        <td class="small">${p.sections.map(s => `${esc(s.name)} <span class="hint">#${s.source_id || s.driver_id}${s.kind ? '' : ' · nur Quelle'}</span>`).join('<br>') || '–'}</td>
+        <td class="small">#${p.driver_id} „${esc(p.c4_name)}“<div class="hint">${esc(p.driver)} · ${esc(p.c4_status || '')}</div></td></tr>`).join('')}
+    </table></div>
+    <p class="hint" style="margin-bottom:0">Nur lesend: Adresse aus den Eigenschaften des Control4-Treibers, Bereiche über dessen Bindungen; Status per KODI-WebSocket (Port 9090) und Control4-Push, Mediathek über KODI JSON-RPC.</p>`;
+}
+async function refresh(what) { await post('/api/refresh?what=' + what); setTimeout(loadStatus, 800); }
+
+// ---- devices (Einrichtung › Geräte): gruppiert nach Raum / Treiber / Typ, aufklappbar
+let devs = [], rooms = [], allItems = [];
+const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* privat */ } };
+let dgKeys = [];
+let devGroup = lsGet('c4devgroup', 'room'), devOpen = new Set(lsGet('c4devopen', [])), devMore = lsGet('c4devmore', false);
+async function loadDevices() {
+  [devs, rooms, allItems] = await Promise.all([api('/api/devices'), api('/api/rooms'), api('/api/learn/items').catch(() => [])]);
+  renderDevices();
+}
+function devGroupKey(d) {
+  return devGroup === 'driver' ? (d.driver || d.proxy || '–') : devGroup === 'type' ? d.type : (d.room || '–');
+}
+async function devIgnore(driver, on) {
+  const note = on ? prompt(`Treiber „${driver}“ ausblenden – Begründung (optional):`, 'nicht nötig') : '';
+  if (on && note === null) return;
+  await post('/api/learn/ignore', { key: 'driver:' + driver, note: note || '', on });
+  allItems = await api('/api/learn/items').catch(() => allItems); renderDevices();
+}
+function toggleDevGroup(k) { devOpen.has(k) ? devOpen.delete(k) : devOpen.add(k); lsSet('c4devopen', [...devOpen]); renderDevices(); }
+function setDevGroup(g) { devGroup = g; lsSet('c4devgroup', g); renderDevices(); }
+function devAll(open) { dgKeys.filter(k => k.startsWith('d:')).forEach(k => open ? devOpen.add(k) : devOpen.delete(k)); lsSet('c4devopen', [...devOpen]); renderDevices(); }
+function renderDevices() {
+  const box = $('#t-devices'); if (!box) return;
+  dgKeys = [];
+  const ho = $('#f-hide')?.checked ?? true, q = ($('#f-q')?.value || '').toLowerCase();
+  const match = (...xs) => !q || xs.join(' ').toLowerCase().includes(q);
+  const list = devs.filter(d => (!ho || d.enabled) && match(d.name, d.id, d.room, d.note, d.aliases.join(' '), d.proxy, d.driver, d.type));
+  const groups = {};
+  list.forEach(d => (groups[devGroupKey(d)] ||= []).push(d));
+  const keys = Object.keys(groups).sort((a, b) => devGroup === 'room'
+    ? (rooms.findIndex(r => r.name === a) - rooms.findIndex(r => r.name === b)) : a.localeCompare(b));
+  const gk = k => 'd:' + devGroup + ':' + k;
+  const row = d => `<tr data-id="${d.id}">
+      <td><a href="#" onclick="event.preventDefault();L.open(${d.id})" title="untersuchen">${esc(d.name)}</a>${d.driver_wrapper ? ' <span class="tag">Treiber</span>' : ''}<div class="hint">#${d.id}</div></td>
+      ${devGroup !== 'room' ? `<td>${esc(d.room)}</td>` : ''}
+      <td><span class="tag">${d.type}</span>${d.switch_kind ? `<div class="hint">${esc(d.switch_kind)}</div>` : ''}</td>
+      <td><code>${esc(d.proxy || '')}</code>${d.how === 'driver' ? ' <span class="tag warn" title="Allerwelts-Proxy – Typ über den Treiber-Dateinamen">über Treiber</span>' : ''}<div class="hint">${esc(d.driver || '')}</div></td>
+      <td><select class="f-function">${['unknown', 'on_off', 'dimmable', 'up_down'].map(f =>
+        `<option value="${f}" ${d.function === f ? 'selected' : ''}>${f}</option>`).join('')}</select></td>
+      <td><input type="text" class="f-note" value="${esc(d.note)}" placeholder="z. B. Deckenleuchte Esszimmer"></td>
+      <td><input type="text" class="f-aliases" value="${esc(d.aliases.join(', '))}" placeholder="Deckenlicht, Lampe oben"></td>
+      <td><input type="checkbox" class="f-enabled" ${d.enabled ? 'checked' : ''} onchange="devEnabled(${d.id}, this)" title="speichert sofort"></td>
+      <td><label class="sw" title="per Sprache ansprechbar – speichert sofort"><input type="checkbox" class="f-voice" ${d.voice !== false ? 'checked' : ''} onchange="devVoice(${d.id}, this)"><i></i></label></td></tr>`;
+  const head = `<tr><th>Gerät (ID)</th>${devGroup !== 'room' ? '<th>Raum</th>' : ''}<th>Bridge-Typ</th><th>Control4-Proxy / Treiber</th><th>Funktion</th><th>Anmerkung (für die KI)</th><th>Weitere Namen</th><th>aktiv</th><th title="per Sprache ansprechbar">Sprache</th></tr>`;
+  // alle übrigen Control4-Items: wofür die Bridge sie nutzt (Modul, Agent, Quelle …) bzw. Kandidat zum Anlernen
+  const used = new Set(devs.map(d => d.id));
+  const others = allItems.filter(i => !used.has(i.id) && match(i.name, i.id, i.room, i.proxy, i.driver, i.label));
+  const oGroups = {};
+  others.forEach(i => (oGroups[i.label] ||= []).push(i));
+  const ORDER = ['nicht genutzt – Kandidat', 'speist ein angezeigtes Gerät (schon sichtbar)', 'Modul BluOS', 'Modul KODI'];
+  const oKeys = Object.keys(oGroups).sort((a, b) => ((ORDER.indexOf(a) + 1 || 9) - (ORDER.indexOf(b) + 1 || 9)) || a.localeCompare(b));
+  const oRow = i => `<tr><td>${esc(i.name)}<div class="hint">#${i.id}${i.parent && i.parent !== i.id ? ' · gehört zu #' + i.parent : ''}</div></td>
+      <td>${esc(i.room || '')}</td><td><code>${esc(i.proxy)}</code><div class="hint">${esc(i.driver)}</div></td>
+      <td class="small">${esc(typeof i.how === 'string' ? i.how : '')}</td>
+      <td style="white-space:nowrap"><button class="act" onclick="L.open(${i.id})">${i.use === 'candidate' || i.use === 'learned' ? 'Anlernen' : 'Untersuchen'}</button>
+        ${i.use === 'candidate' ? `<button class="act" title="aus den Kandidaten nehmen (alle Geräte dieses Treibers)" onclick="devIgnore('${esc(i.driver)}', true)">ausblenden</button>` : ''}
+        ${i.use === 'ignored' ? `<button class="act" onclick="devIgnore('${esc(i.driver)}', false)">einblenden</button>` : ''}</td></tr>`;
+  const open = k => !!q || devOpen.has(k);
+  const grp = (k, label, n, extra, inner) => `<div class="dgrp"><button class="dgh" onclick="toggleDevGroup(dgKeys[${dgKeys.push(k) - 1}])">
+      <span class="tw">${open(k) ? '▾' : '▸'}</span> ${esc(label)} <span class="hint">${n}${extra}</span></button>
+      ${open(k) ? `<div class="scroll"><table>${inner}</table></div>` : ''}</div>`;
+  box.innerHTML = `
+    <div class="panel">
+      <div class="toolbar">
+        <input type="search" id="f-q" placeholder="Gerät, ID, Raum, Proxy, Treiber suchen …" value="${esc(q)}" oninput="renderDevices()">
+        <div class="seg">${[['room', 'Raum'], ['driver', 'Treiber'], ['type', 'Typ']].map(([k, l]) =>
+          `<button type="button" class="${devGroup === k ? 'on' : ''}" onclick="setDevGroup('${k}')">nach ${l}</button>`).join('')}</div>
+        <label class="hint"><input type="checkbox" id="f-hide" ${ho ? 'checked' : ''} onchange="renderDevices()"> nur aktive</label>
+        <button class="act" onclick="devAll(true)">alle auf</button>
+        <button class="act" onclick="devAll(false)">alle zu</button>
+        <span class="hint">${list.length} Geräte</span>
+        <button class="act spacer" onclick="L.open()">🧪 Gerät anlernen (experimentell)</button>
+        <button class="act primary" onclick="saveAllDevices(this)">Speichern</button>
+        <span id="dev-msg" class="hint"></span>
+      </div>
+      ${keys.map(k => grp(gk(k), k, groups[k].length, ` · ${groups[k].filter(d => d.enabled).length} aktiv`, head + groups[k].map(row).join(''))).join('')
+        || '<p class="hint">keine Geräte</p>'}
+      <p class="hint" style="margin:10px 0 0">Name anklicken = Gerät untersuchen (Variablen, Befehle, Push-Mitschnitt). Erkannt wird über den Control4-Proxy;
+        „über Treiber“ = Allerwelts-Proxy, Typ kommt aus dem Treiber-Dateinamen.</p>
+    </div>
+    <div class="panel">
+      <button class="dgh" onclick="devMore=!devMore;lsSet('c4devmore',devMore);renderDevices()"><span class="tw">${devMore || q ? '▾' : '▸'}</span>
+        <b>Weitere Control4-Items</b> <span class="hint">${others.length} · von der Bridge nicht als Gerät geführt (Module, Agenten, Quellen, Bedienteile, Kandidaten)</span></button>
+      ${devMore || q ? oKeys.map(k => grp('o:' + k, k, oGroups[k].length, '',
+        '<tr><th>Item (ID)</th><th>Raum</th><th>Control4-Proxy / Treiber</th><th>Profil</th><th></th></tr>' + oGroups[k].map(oRow).join(''))).join('') : ''}
+    </div>`;
+  const fq = $('#f-q'); if (fq && q) { const p = fq.selectionStart; fq.focus(); fq.setSelectionRange(p, p); }
+}
+function actionCell(d) {
+  if (d.type === 'light')
+    return d.function === 'dimmable'
+      ? `<input type="range" min="0" max="100" value="0" style="width:110px;vertical-align:middle"
+                 onchange="devLevel(${d.id}, this.value)">`
+      : `<label class="sw"><input type="checkbox" onchange="devLevel(${d.id}, this.checked ? 100 : 0)"><i></i></label>`;
+  if (d.type === 'blind')
+    return `<button class="act ib" title="Öffnen" onclick="devBlind(${d.id},'open')">&#9650;</button>
+            <button class="act ib" title="Schließen" onclick="devBlind(${d.id},'close')">&#9660;</button>
+            <button class="act ib" title="Stopp" onclick="devBlind(${d.id},'stop')">&#9632;</button>`;
+  return '';
+}
+async function devVoice(id, el) {
+  try { await put('/api/devices/' + id, { voice: el.checked }); const d = devs.find(x => x.id === id); if (d) d.voice = el.checked;
+    $('#dev-msg').textContent = 'gespeichert ✓'; setTimeout(() => $('#dev-msg').textContent = '', 2000);
+  } catch (e) { el.checked = !el.checked; alert('Fehler: ' + e.message); }
+}
+async function devEnabled(id, el) {
+  try { await put('/api/devices/' + id, { enabled: el.checked }); const d = devs.find(x => x.id === id); if (d) d.enabled = el.checked;
+    $('#dev-msg').textContent = 'gespeichert ✓'; setTimeout(() => $('#dev-msg').textContent = '', 2000);
+  } catch (e) { el.checked = !el.checked; alert('Fehler: ' + e.message); }
+}
+async function devLevel(id, level) { await post(`/api/devices/${id}/level`, { level: +level }); }
+async function devBlind(id, action) { await post(`/api/blinds/${id}/${action}`); }
+async function saveAllDevices(btn) {
+  const msg = $('#dev-msg');
+  const rows = document.querySelectorAll('#t-devices tr[data-id]');   // nur aufgeklappte Gruppen (nur dort kann geändert sein)
+  let n = 0;
+  for (const tr of rows) {
+    const id = tr.dataset.id;
+    await put('/api/devices/' + id, {
+      note: $('.f-note', tr).value, function: $('.f-function', tr).value,
+      aliases: $('.f-aliases', tr).value.split(','), enabled: $('.f-enabled', tr).checked,
+      voice: $('.f-voice', tr) ? $('.f-voice', tr).checked : undefined });
+    n++;
+  }
+  msg.textContent = `${n} Geräte gespeichert ✓`;
+  devs = await api('/api/devices');
+  setTimeout(() => msg.textContent = '', 2500);
+}
+
+// ---- media
+function renderMedia() {
+  if ($('#m-q')) return;
+  $('#t-media').innerHTML = `<div class="panel">
+    <h2 class="sec">Musikbibliothek – Diagnose (Suche wie die Sprachsteuerung)</h2>
+    <div class="toolbar"><input type="search" id="m-q" placeholder="Interpret, Album oder Titel suchen …"
+      style="max-width:480px"><button class="act primary" onclick="mediaSearch()">Suchen</button></div>
+    <div id="m-res" class="scroll"></div></div>`;
+  $('#m-q').addEventListener('keydown', e => { if (e.key === 'Enter') mediaSearch(); });
+}
+async function mediaSearch() {
+  const r = await api('/api/media/search?q=' + encodeURIComponent($('#m-q').value));
+  $('#m-res').innerHTML = `<table><tr><th></th><th>Titel</th><th>Interpret</th><th>Album</th><th>Treffer</th></tr>` +
+    r.map(x => `<tr><td><span class="tag">${x.kind === 'album' ? 'Album' : 'Titel'}</span></td><td>${esc(x.title)}</td>
+      <td>${esc(x.artist)}</td><td>${esc(x.album || '')}</td><td class="muted">${x.score}</td></tr>`).join('') + '</table>';
+}
+
+// ---- log (live)
+const logEl = $('#log');
+function addLog(e) {
+  const d = document.createElement('div'); d.className = 'l-' + e.level;
+  d.textContent = `${e.ts}  ${e.level.padEnd(5)} ${e.source}: ${e.message}`;
+  const stick = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 30;
+  logEl.appendChild(d); if (stick) logEl.scrollTop = logEl.scrollHeight;
+}
+const es = new EventSource('/api/log/stream'); es.onmessage = m => addLog(JSON.parse(m.data));
+
+// ---- config (Untermenüs: Control4 | UI | Räume | Kameras) ------------------------
+let cfgSavedTimer, cfgSub = 'control4', cfgNavSub = false;   // cfgNavSub: Liste zeigt die Unterpunkte des Bereichs
+const CFG_TABS = [['control4', 'Control4'], ['devices', 'Geräte'], ['ui', 'Oberfläche & Räume'], ['modules', 'Module'],
+  ['cameras', 'Kameras'], ['voice', 'Sprachsteuerung'], ['access', 'Zugang & Benutzer']];
+const VOICE_TABS = [['dienst', 'Spracherkennung'], ['llm', 'LLM'], ['mics', 'Mikrofone + Räume'], ['tts', 'Sprachausgabe'],
+  ['wissen', 'Wissen & Wetter'], ['licht', 'Licht'], ['vol', 'Lautstärke']];
+function cfgOpen(k) { cfgNavSub = k === 'voice'; if (cfgSub !== k) { cfgSub = k; renderConfigTab(); } else renderCfgNav(); }
+function cfgBack() { cfgNavSub = false; renderCfgNav(); }
+function renderCfgNav() {
+  const nav = $('#cfg-nav'); if (!nav) return;
+  if (cfgNavSub && cfgSub === 'voice') {
+    nav.innerHTML = `<button type="button" class="back" onclick="cfgBack()">‹ Zurück</button><div class="navh">Sprachsteuerung</div>`
+      + VOICE_TABS.map(([k, l]) => `<button type="button" data-vt="${k}" class="${vTab === k ? 'on' : ''}" onclick="setVTab('${k}')">${esc(l)}</button>`).join('');
+    return;
+  }
+  nav.innerHTML = `<div class="navh">Einrichtung</div>` + CFG_TABS.map(([k, l]) => `<button type="button" class="${cfgSub === k ? 'on' : ''}"
+    onclick="cfgOpen('${k}')">${esc(l)}${k === 'voice' ? '<span class="more">›</span>' : ''}</button>`).join('');
+}
+async function loadConfig() {
+  const c = await api('/api/config');
+  window._cfg = c;
+  $('#t-config').innerHTML = `<div class="cfgwrap"><nav class="cfgnav" id="cfg-nav"></nav>
+    <div class="cfgmain"><div id="cfg-body"></div><div id="roomsPanel"></div><div id="camPanel"></div></div></div>`;
+  renderConfigTab();
+  loadRoomAdmin();
+  loadCamAdmin();
+}
+function renderConfigTab() {
+  const c = window._cfg || {};
+  renderCfgNav();
+  const b = $('#cfg-body');
+  if (cfgSub === 'control4') {
+    b.innerHTML = `
+      <div class="panel">
+        <div class="savebar"><button class="act primary" onclick="saveConfig()">Speichern</button>
+          <span id="c-msg" class="hint"></span></div>
+        <h2 class="sec">Control4-Zugang</h2>
+        <div class="frm">
+          <label class="fl" for="c-user">E-Mail</label>
+          <div class="ctr"><input type="text" id="c-user" value="${esc(c.c4_user)}" placeholder="konto@example.de"></div>
+          <label class="fl" for="c-pass">Passwort</label>
+          <div class="ctr"><input type="password" id="c-pass" placeholder="${c.c4_pass_set ? 'gesetzt – leer lassen = unverändert' : 'noch nicht gesetzt'}" autocomplete="new-password"></div>
+          <label class="fl" for="c-ip">Controller-IP</label>
+          <div class="ctr"><input type="text" id="c-ip" value="${esc(c.c4_ip)}" placeholder="192.168.1.50"></div>
+        </div>
+        <p class="hint" style="margin:12px 0 0">Zugangsdaten wirken sofort (ohne Neustart). Datei: ${esc(c.config_path)}</p>
+
+        <div class="sect"><h2 class="sec">System</h2>
+          <div class="frm">
+            <label class="fl" for="c-scanmin">Controller-Scan</label>
+            <div class="ctr"><input type="number" id="c-scanmin" value="${c.scan_min}" min="0" max="1440">
+              <span class="hint">Minuten (0 = aus, Standard 1440 = einmal am Tag) – sucht automatisch nach neuen Geräten und Räumen.</span></div>
+            <span class="fl">Projekt abrufen</span>
+            <div class="ctr"><button class="act" onclick="scanNow()">Jetzt scannen</button>
+              <span id="scan-msg" class="hint"></span></div>
+          </div>
+        </div>
+
+        <div class="sect"><h2 class="sec">WebSocket-Push</h2>
+          <div id="wsbox" class="card"><span class="hint">lade …</span></div>
+        </div>
+      </div>`;
+  } else if (cfgSub === 'ui') {
+    b.innerHTML = `
+      <div class="panel">
+        <h2 class="sec">Design</h2>
+        <div class="frm">
+          <label class="fl" for="c-theme">Theme</label>
+          <div class="ctr"><select id="c-theme" onchange="saveTheme(this.value)">
+            <option value="x4">OS X4 (Standard)</option>
+            <option value="os3">OS 3 – veraltet, wird nicht mehr weiterentwickelt</option>
+          </select>
+          <span class="hint">Persönliche Einstellung des angemeldeten Benutzers (auch im ⋮-Menü der Bedienoberfläche umschaltbar), wirkt sofort.</span></div>
+        </div>
+      </div>`;
+    fetch('/api/me').then(r => r.json()).then(m => { $('#c-theme').value = (m.prefs && m.prefs.theme) || 'x4'; });
+  } else if (cfgSub === 'access') {
+    b.innerHTML = `
+      <div class="panel">
+        <h2 class="sec">Benutzerverwaltung</h2>
+          <div id="usersPanel" class="card"><span class="hint">lade …</span></div>
+
+        <div class="sect"><h2 class="sec">Notfall-Login (Config-Datei) · Host / Port</h2>
+        <div class="savebar"><button class="act primary" onclick="saveConfig()">Speichern</button>
+          <span id="c-msg" class="hint"></span><span class="hint spacer" style="color:var(--warn)">Login wirkt sofort · Host/Port brauchen einen Bridge-Neustart (run.bat)</span></div>
+
+          <p class="hint" style="margin:0 0 10px">Nur relevant, solange oben KEINE Benutzer angelegt sind: dann gilt dieser einzelne Login (als Admin).</p>
+          <div class="frm">
+            <label class="fl" for="c-webuser">Login-Benutzer</label>
+            <div class="ctr"><input type="text" id="c-webuser" value="${esc(c.web_user)}" placeholder="leer = kein Login (nur localhost!)"></div>
+            <label class="fl" for="c-webpass">Login-Passwort</label>
+            <div class="ctr"><input type="password" id="c-webpass" placeholder="${c.web_pass_set ? 'gesetzt – leer lassen = unverändert' : 'noch nicht gesetzt'}" autocomplete="new-password"></div>
+            <label class="fl">Host / Port</label>
+            <div class="ctr"><input type="text" id="c-host" value="${esc(c.host)}" style="width:160px">
+              <input type="number" id="c-port" value="${c.port}"></div>
+          </div>
+        </div>
+      </div>`;
+    loadUsers();
+  } else if (cfgSub === 'voice') {
+    b.innerHTML = `
+      <div class="panel">
+        <h2 class="sec">Sprachdienst c4voice</h2>
+        <div class="savebar" id="v-savebar"><button class="act primary" onclick="saveVoiceConfig()">Speichern</button>
+          <span id="v-msg" class="hint"></span>
+          <span class="hint spacer">Textfelder/Auswahl → Speichern (gilt für alle Unterreiter) · Schalter speichern sofort</span></div>
+
+        <div id="vp-dienst">
+        <div id="voicebox" class="card"><span class="hint">lade …</span></div>
+
+        <div class="sect"><h2 class="sec">System</h2>
+          <div class="frm">
+            <label class="fl">Autostart &amp; Watchdog</label>
+            <div class="ctr"><label class="hint"><input type="checkbox" id="v-enabled" onchange="vToggle({enabled:this.checked})"> c4voice mit der Bridge starten und bei Absturz automatisch neu starten</label></div>
+            <label class="fl" for="v-port">Interner Port</label>
+            <div class="ctr"><input type="number" id="v-port">
+              <span class="hint">c4voice lauscht nur auf 127.0.0.1 und nimmt nur Aufträge der Bridge an (Token). Mikrofone verbinden sich über die Bridge.</span></div>
+            <label class="fl" for="v-bridgeurl">Bridge-URL</label>
+            <div class="ctr"><input type="text" id="v-bridgeurl"></div>
+          </div>
+        </div>
+
+        <div class="sect"><h2 class="sec">Wake-Word · openWakeWord (CPU)</h2>
+          <div class="frm">
+            <label class="fl">Aktiv</label>
+            <div class="ctr"><label class="hint"><input type="checkbox" id="v-wake" onchange="vToggle({wake:{enabled:this.checked}}, 'Neustart des Sprachdienstes nötig')"> Mikrofon muss erst das Wake-Word sagen</label></div>
+            <label class="fl" for="v-wthr">Empfindlichkeit</label>
+            <div class="ctr"><input type="number" id="v-wthr" min="0.1" max="0.9" step="0.05" style="width:70px">
+              <span class="hint">Schwelle 0,1–0,9 – niedriger = hört dich eher, löst aber öfter fälschlich aus (Standard 0,5)</span></div>
+            <label class="fl">Gegenprüfung</label>
+            <div class="ctr"><label class="hint"><input type="checkbox" id="v-wverify"> Nur ausführen, wenn die Anrede („Jarvis“) auch im erkannten Text steht – sonst Fehlalarm verwerfen</label></div>
+            <label class="fl" for="v-wmodel">Modell</label>
+            <div class="ctr"><select id="v-wmodel"></select>
+              <button class="act" id="wdl" onclick="wakeDownload(this)">Fehlende Modelle herunterladen</button>
+              <span class="hint" id="wstate"></span></div>
+          </div>
+        </div>
+
+        <div class="sect"><h2 class="sec">Spracherkennung · Whisper</h2>
+          <div class="frm">
+            <label class="fl" for="v-stt">Modell</label>
+            <div class="ctr"><select id="v-stt" onchange="sttKind()">
+              <optgroup label="GPU (eigener Dienst, ~1 GB Grafikspeicher)">
+              <option value="whisper-vulkan-multi">GPU · Whisper turbo mehrsprachig (Vulkan) – ~0,3 s, englische Namen/Titel besser</option>
+              <option value="whisper-vulkan">GPU · Whisper turbo deutsch (Vulkan) – ~0,3 s je Satz</option>
+              <option value="whisper-gpu">GPU · Whisper turbo deutsch (DirectML) – ~0,4 s je Satz</option>
+              </optgroup>
+              <optgroup label="CPU (Standard, ohne Grafikkarte)">
+              <option value="tiny">CPU · Whisper tiny – am schnellsten, schwächer</option>
+              <option value="base">CPU · Whisper base – Kompromiss</option>
+              <option value="small">CPU · Whisper small – deutlich genauer</option>
+              <option value="medium">CPU · Whisper medium – genauer, langsam</option>
+              <option value="large-v3-turbo">CPU · Whisper large-v3-turbo – genau, ~2,5 s je Satz</option>
+              <option value="large-v3-turbo-german">CPU · Whisper large-v3-turbo deutsch (primeline) – ~2,5 s je Satz</option>
+              </optgroup>
+            </select>
+            <span class="hint">größeres Modell = bessere Erkennung · Wechsel wirkt nach „Speichern“ ab dem nächsten Satz</span></div>
+            <label class="fl cpuonly" for="v-sttthreads">CPU-Kerne</label>
+            <div class="ctr cpuonly"><input type="number" id="v-sttthreads" min="1" max="32" style="width:64px">
+              <span class="hint">Threads für die Erkennung auf der CPU (Standard 4; 8–12 deutlich schneller, darüber kaum noch)</span></div>
+            <label class="fl" for="v-sttbeam">Varianten (Beam)</label>
+            <div class="ctr"><input type="number" id="v-sttbeam" min="1" max="10" style="width:64px">
+              <span class="hint">1 = schnell, legt jedes Wort sofort fest · 5 = wägt fünf Lesarten ab, besser bei Namen</span></div>
+            <label class="fl" for="v-lang">Sprache des Assistenten</label>
+            <div class="ctr"><select id="v-lang" onchange="vLang(this.value)"><option value="de">Deutsch</option><option value="en">English</option></select>
+              <span class="hint">Erkennung, Antworten, Kurzbefehle und Anweisungen an die KI – die Anweisungen sind je Sprache getrennt gespeichert · speichert sofort</span></div>
+          </div>
+          <details class="adv hintbox" id="v-hintbox">
+            <summary>Hinweistext für die Erkennung</summary>
+            <p class="hint">Eure eigenen Wörter, die oft falsch erkannt werden (Namen, Geräte, Interpreten). Raum- und Gerätenamen
+              kommen automatisch dazu – alles zum Wortschatz: c4bridge/WORTSCHATZ.md</p>
+            <textarea id="v-hint" rows="4" spellcheck="false" placeholder="Fachbegriffe, die oft falsch erkannt werden"></textarea>
+          </details>
+        </div>
+
+        </div>
+
+        <div id="vp-llm" hidden>
+        <div class="sect" style="margin-top:0;padding-top:0;border-top:0"><h2 class="sec">LLM · Ollama</h2>
+          <div class="frm">
+            <label class="fl" for="v-llmurl">Ollama-URL</label>
+            <div class="ctr"><input type="text" id="v-llmurl" placeholder="http://192.168.1.x:11434"></div>
+            <label class="fl" for="v-llmmodel">Modell</label>
+            <div class="ctr"><input type="text" id="v-llmmodel" placeholder="qwen3.5:9b" style="width:180px">
+              <span class="hint">darf auf anderem PC laufen (dort Ollama mit OLLAMA_HOST=0.0.0.0 starten)</span></div>
+            <label class="fl" for="v-llmka">Im Speicher halten</label>
+            <div class="ctr"><input type="number" id="v-llmka" min="-1" max="1440" style="width:80px">
+              <span class="hint">Minuten nach dem letzten Befehl (−1 = immer, 0 = sofort entladen). Lang = keine Wartezeit beim ersten Befehl, belegt aber dauerhaft (Grafik-)Speicher.</span></div>
+            <label class="fl" for="v-llmctx">Kontext</label>
+            <div class="ctr"><input type="number" id="v-llmctx" min="0" max="131072" step="1024" style="width:100px">
+              <span class="hint">Tokens (0 = Ollama-Standard). Für Befehle meist egal; nur erhöhen, wenn die Geräteliste sehr lang ist.</span></div>
+          </div>
+          <details class="adv" id="v-examples">
+            <summary>Beispielsätze für die KI (Licht, Rollläden, Medien)</summary>
+            <p class="hint">So soll die KI auf typische Sätze reagieren – je Zeile „Satz → Werkzeug(…)“. Eigene Formulierungen
+              einfach ergänzen (z. B. wie ihr zu Hause sprecht). Stehen im zwischengespeicherten Teil der Anweisungen und
+              kosten daher kaum Zeit. Erst nach „Speichern“ aktiv, wirkt ab dem nächsten Befehl.</p>
+            <textarea id="p-examples" rows="22" spellcheck="false"></textarea>
+            <div class="row"><button class="act" onclick="promptReset('examples')">Standard wiederherstellen</button><span class="hint" id="p-examples-st"></span></div>
+          </details>
+          <details class="adv" id="v-adv">
+            <summary>Erweitert: Anweisungen an die KI (Prompts)</summary>
+            <p class="hint">Leer bzw. unverändert = eingebaute Anweisungen (bekommen künftige Verbesserungen automatisch).
+              Erst nach „Speichern" aktiv, wirkt ab dem nächsten Befehl.</p>
+            <label class="fl" for="p-house"><b>Haussteuerung</b> – Platzhalter <code>{rooms}</code> <code>{devices}</code> (Pflicht), <code>{genres}</code></label>
+            <textarea id="p-house" rows="14" spellcheck="false"></textarea>
+            <div class="row"><button class="act" onclick="promptReset('house')">Standard wiederherstellen</button><span class="hint" id="p-house-st"></span></div>
+            <label class="fl" for="p-answer"><b>Allgemeine Fragen</b> – fasst Suchtreffer zur gesprochenen Antwort zusammen (Antwort-Modell)</label>
+            <textarea id="p-answer" rows="5" spellcheck="false"></textarea>
+            <div class="row"><button class="act" onclick="promptReset('answer')">Standard wiederherstellen</button><span class="hint" id="p-answer-st"></span></div>
+          </details>
+        </div>
+        </div>
+
+        <div id="vp-mics" hidden>
+        <div class="sect" style="margin-top:0;padding-top:0;border-top:0"><h2 class="sec">Mikrofone &amp; Räume</h2>
+          <div id="microws" class="card"><span class="hint">Noch keine Mikrofone gesehen – einmal den Mikrofon-Test verbinden, dann erscheinen sie hier.</span></div>
+          <p class="hint" style="margin:8px 0 0">Jedem Mikrofon 1–3 Räume zuweisen (z. B. Esszimmer + Küche als Einheit): „Mach das Licht an" ohne Raumnennung gilt dann für diese Räume – die anderen Geräte nutzt die KI nur bei ausdrücklicher Nennung.</p>
+          <p class="hint" style="margin:6px 0 0">Eigene Geräte (ESP32/Raspberry) streamen PCM16/16 kHz/mono an <code>ws://&lt;bridge-ip&gt;:8080/api/voice/mic</code> (oder <code>wss://…:8443</code>, wenn HTTPS eingerichtet ist) – mit Login (HTTP-Basic eines Benutzers, am besten ein eigener Benutzer „mikrofon-küche“ mit Rolle user), hello <code>{"type":"hello","client":"name","push_to_talk":true}</code>, dann Binärframes.</p>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="act" onclick="openMicTest()" title="Mikrofon im Browser testen (kleines, verschiebbares Fenster)">Mikrofon-Test öffnen</button>
+          </div>
+        </div>
+        </div>
+
+        <div id="vp-tts" hidden>
+        <div id="tts-status" class="card" style="margin-bottom:12px"><span class="hint">lade …</span></div>
+        <div class="sect" style="margin-top:0;padding-top:0;border-top:0"><h2 class="sec">Sprachausgabe (lokal)</h2>
+          <div class="frm">
+            <label class="fl">Aktiv</label>
+            <div class="ctr"><label class="hint"><input type="checkbox" id="t-enabled" onchange="vToggle({tts:{enabled:this.checked}})"> Antworten sprechen (Mikrofon-Gerät bzw. Browser spielt sie ab)</label></div>
+            <label class="fl" for="t-eng">Sprachmodell</label>
+            <div class="ctr"><select id="t-eng" style="width:260px" onchange="ttsEng()">
+              <option value="piper">CPU · Piper (sofort)</option>
+              <option value="pocket">GPU · Pocket TTS (viele Stimmen, ~0,3 s je Satz)</option>
+              <option value="qwen3">GPU · Qwen3-TTS (eigener Dienst, ~1,4 GB)</option>
+            </select>
+              <span class="hint">fällt das Modell aus, spricht Piper</span></div>
+          </div>
+          <div class="frm" id="t-pocket" hidden>
+            <label class="fl" for="t-pvoice">Pocket-Stimme</label>
+            <div class="ctr"><select id="t-pvoice" style="width:260px"></select>
+              <span class="hint">Stimmproben in bin/tts/pocket/voices</span></div>
+          </div>
+          <div class="frm" id="t-qwen" hidden>
+            <label class="fl" for="t-qdir">Qwen3-Ordner</label>
+            <div class="ctr"><input type="text" id="t-qdir" style="width:420px" placeholder="leer = Standard bin/tts/qwen3 (mit .venv und model-base)"></div>
+            <label class="fl" for="t-qmodel">Qwen3-Modell</label>
+            <div class="ctr"><select id="t-qmodel" style="width:260px">
+                <option value="model-base">1.7B (beste Qualität, ~1,4 GB Grafikspeicher)</option>
+                <option value="model-base-small">0.6B (schneller, weniger Grafikspeicher)</option></select>
+              <span class="hint">Wechsel lädt den Dienst beim nächsten Satz neu (~7 s)</span></div>
+            <label class="fl" for="t-qref">Stimmvorlage</label>
+            <div class="ctr"><select id="t-qref" style="width:260px"></select>
+              <span class="hint">data/tts/qwen_ref_&lt;name&gt;.wav + .txt (5–10 s klare Sprache – längere Vorlagen verschlucken kurze Sätze; echte Personen nur mit Einverständnis)</span></div>
+            <label class="fl" for="t-qtext">Text der Vorlage</label>
+            <div class="ctr"><input type="text" id="t-qtext" style="width:420px" placeholder="was in der Vorlage gesagt wird"></div>
+          </div>
+          <div class="frm">
+            <label class="fl" for="t-voice">Piper-Stimme</label>
+            <div class="ctr"><select id="t-voice" style="width:260px"></select>
+              <span class="hint" id="t-engine"></span>
+              <span class="hint">spricht nur, wenn Piper gewählt ist oder Pocket/Qwen3 ausfällt; Tempo und Lautstärke gelten nur für Piper</span></div>
+            <label class="fl" for="t-speed">Tempo</label>
+            <div class="ctr"><input type="range" id="t-speed" min="0.6" max="1.6" step="0.05" style="width:200px" oninput="$('#t-speed-v').textContent=(+this.value).toFixed(2)+'×'">
+              <span class="hint" id="t-speed-v"></span></div>
+            <label class="fl" for="t-volume">Lautstärke</label>
+            <div class="ctr"><input type="range" id="t-volume" min="0.2" max="2" step="0.1" style="width:200px" oninput="$('#t-volume-v').textContent=Math.round(this.value*100)+' %'">
+              <span class="hint" id="t-volume-v"></span></div>
+            <label class="fl" for="t-mode">Was sprechen</label>
+            <div class="ctr"><select id="t-mode" style="width:260px">
+              <option value="full">ganze Antwort („Licht Schreibtisch an, 40 Prozent“)</option>
+              <option value="short">kurz – nur „Okay“ bei Erfolg</option>
+            </select>
+              <span class="hint">Rückfragen, Fehler und Auskünfte (Temperatur) immer vollständig</span></div>
+            <label class="fl">Rückfragen</label>
+            <div class="ctr"><label class="hint"><input type="checkbox" id="t-followup" onchange="vToggle({tts:{followup:this.checked}})"> Nach einer Rückfrage („Welches Arbeitszimmer?“) 12 s ohne Wake-Word auf die Antwort hören; die Frage bleibt 90 s offen (auch „Hey Jarvis, ja“ geht dann noch)</label></div>
+          </div>
+          <div class="sect"><h2 class="sec">Probe</h2>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <input type="text" id="t-text" style="flex:1 1 320px" value="Okay, das Licht im Wohnzimmer ist jetzt auf 40 %.">
+              <button class="act primary" id="t-play" onclick="ttsTest(this)">▶ Anhören</button>
+              <span class="hint" id="t-msg"></span>
+            </div>
+            <p class="hint" style="margin:6px 0 0">Hört mit den Reglern oben (auch ungespeichert). c4voice muss laufen.</p>
+          </div>
+          <div class="sect"><h2 class="sec">Piper-Stimmen (Rückfall, falls Pocket/Qwen3 ausfällt)</h2>
+            <div id="t-voices" class="card"><span class="hint">lade …</span></div>
+            <p class="hint" style="margin:8px 0 0">Quelle: HuggingFace rhasspy/piper-voices (ca. 60–110 MB je Stimme, Ablage <code>data/tts/</code>).
+              Wiedergabe: Der Browser-Mikrofon-Test spielt die Antworten ab; eigene Mikrofon-Geräte bekommen nach <code>{"type":"tts","format":"wav"}</code> die WAV-Datei als Binärnachricht (hello <code>"tts": false</code> = nur Text).</p>
+          </div>
+        </div>
+        </div>
+
+        <div id="vp-wissen" hidden>
+        <div class="sect" style="margin-top:0;padding-top:0;border-top:0"><h2 class="sec">Wetter · Open-Meteo (ohne Schlüssel)</h2>
+          <div class="frm">
+            <label class="fl">Aktiv</label>
+            <div class="ctr"><label class="hint"><input type="checkbox" id="a-w-on" onchange="vToggle({assist:{weather:{enabled:this.checked}}})"> „Hey Jarvis, wie wird das Wetter heute / morgen / am Samstag?“</label></div>
+            <label class="fl" for="a-place">Ort</label>
+            <div class="ctr"><span class="geo"><input type="text" id="a-place" placeholder="Ort eintippen, z. B. Stadt oder Ortsteil" style="width:260px"
+                autocomplete="off" oninput="geoType()" onkeydown="geoKey(event)" onblur="setTimeout(geoClose, 200)">
+                <div class="geo-dd" id="a-geodd" hidden></div></span> <span class="hint" id="a-geo"></span></div>
+            <label class="fl">Koordinaten</label>
+            <div class="ctr"><input type="number" id="a-lat" step="0.0001" placeholder="Breite" style="width:110px">
+              <input type="number" id="a-lon" step="0.0001" placeholder="Länge" style="width:110px">
+              <span class="hint">werden beim Ort-Suchen gesetzt; bleiben in data/voice.json (nur lokal)</span></div>
+            <label class="fl">Probe</label>
+            <div class="ctr"><button class="act" onclick="weatherTest(0)">Heute</button> <button class="act" onclick="weatherTest(1)">Morgen</button>
+              <span class="hint" id="a-wmsg"></span></div>
+          </div>
+        </div>
+        <div class="sect"><h2 class="sec">Allgemeine Fragen · Websuche</h2>
+          <div class="frm">
+            <label class="fl">Aktiv</label>
+            <div class="ctr"><label class="hint"><input type="checkbox" id="a-web-on" onchange="vToggle({assist:{web:{enabled:this.checked}}}).then(loadAssistState)"> Fragen wie „Wer hat …?“, „Wann ist …?“ im Internet nachschlagen (die Frage verlässt dann das Haus, Hausdaten nie)</label></div>
+            <label class="fl" for="a-prov">Anbieter</label>
+            <div class="ctr"><select id="a-prov" style="width:220px"><option value="searxng">SearXNG (selbst betrieben)</option><option value="exa">Exa (exa.ai, API-Schlüssel)</option></select>
+              <span class="hint" id="a-wstate"></span></div>
+            <label class="fl" for="a-sx">SearXNG-URL</label>
+            <div class="ctr"><input type="text" id="a-sx" placeholder="http://192.168.1.x:8888" style="width:280px">
+              <span class="hint">in settings.yml muss <code>search.formats</code> „json“ enthalten</span></div>
+            <label class="fl" for="a-exa">Exa-Schlüssel</label>
+            <div class="ctr"><input type="password" id="a-exa" autocomplete="new-password" style="width:280px">
+              <span class="hint">liegt in config.env (außerhalb des Projekts), leer lassen = unverändert</span></div>
+            <label class="fl" for="a-n">Treffer</label>
+            <div class="ctr"><input type="number" id="a-n" min="1" max="10" style="width:64px"> <span class="hint">Suchtreffer, aus denen die Antwort entsteht</span></div>
+            <label class="fl">Probe-Suche</label>
+            <div class="ctr"><input type="text" id="a-q" value="Wer hat die Fußball-WM 2014 gewonnen?" style="width:320px">
+              <button class="act" onclick="searchTest()">Suchen</button></div>
+          </div>
+          <div id="a-sres" class="small" style="margin-top:8px"></div>
+        </div>
+        <div class="sect"><h2 class="sec">Antwort-Modell (optional, zweite Ollama-Instanz)</h2>
+          <div class="frm">
+            <label class="fl" for="a-llmurl">Ollama-URL</label>
+            <div class="ctr"><input type="text" id="a-llmurl" placeholder="leer = wie Haupt-KI" style="width:280px"></div>
+            <label class="fl" for="a-llmmodel">Modell</label>
+            <div class="ctr"><input type="text" id="a-llmmodel" placeholder="leer = wie Haupt-KI" style="width:200px">
+              <span class="hint">fasst die Suchtreffer zu 1–2 gesprochenen Sätzen zusammen; Haussteuerung bleibt beim schnellen Hauptmodell</span></div>
+            <label class="fl" for="a-llmka">Im Speicher halten</label>
+            <div class="ctr"><input type="number" id="a-llmka" min="-1" max="1440" style="width:80px">
+              <span class="hint">Minuten (−1 = immer, 0 = sofort entladen)</span></div>
+            <label class="fl" for="a-llmctx">Kontext</label>
+            <div class="ctr"><input type="number" id="a-llmctx" min="0" max="131072" step="1024" style="width:100px">
+              <span class="hint">Tokens (0 = Standard). Suchtreffer sind länger – hier ggf. 8192 oder mehr.</span></div>
+          </div>
+        </div>
+        </div>
+
+        <div id="vp-licht" hidden>
+        <div class="sect" style="margin-top:0;padding-top:0;border-top:0"><h2 class="sec">Helligkeitssteuerung · relative Stufen („ein bisschen / normal / richtig“)</h2>
+          <div class="frm">
+            <label class="fl">„ein bisschen“</label>
+            <div class="ctr"><span class="hint">heller +</span> <input type="number" id="v-ak-up" min="1" max="100" style="width:64px">
+              <span class="hint">% des Restwegs · dunkler −</span> <input type="number" id="v-ak-down" min="1" max="100" style="width:64px">
+              <span class="hint">% vom aktuellen Wert</span></div>
+            <label class="fl">normal</label>
+            <div class="ctr"><span class="hint">heller +</span> <input type="number" id="v-am-up" min="1" max="100" style="width:64px">
+              <span class="hint">% des Restwegs · dunkler −</span> <input type="number" id="v-am-down" min="1" max="100" style="width:64px">
+              <span class="hint">% vom aktuellen Wert</span></div>
+            <label class="fl">„richtig hell / gemütlich“</label>
+            <div class="ctr"><span class="hint">heller +</span> <input type="number" id="v-ag-up" min="1" max="100" style="width:64px">
+              <span class="hint">% des Restwegs (100 = voll) · dunkler −</span> <input type="number" id="v-ag-down" min="1" max="100" style="width:64px">
+              <span class="hint">% vom aktuellen Wert</span></div>
+            <label class="fl">Ausnahme „gemütlich“</label>
+            <div class="ctr"><span class="hint">schon ≤</span> <input type="number" id="v-cozy-below" min="0" max="100" style="width:64px">
+              <span class="hint">% → nur noch −</span> <input type="number" id="v-cozy-down" min="0" max="100" style="width:64px">
+              <span class="hint">% (damit „gemütlich“ ein schon dunkles Licht nicht fast ausschaltet)</span></div>
+            <label class="fl">Untergrenze</label>
+            <div class="ctr"><input type="number" id="v-minlevel" min="0" max="50" style="width:64px">
+              <span class="hint">% — „dunkler“ endet nie darunter; ganz aus nur mit „Licht aus“</span></div>
+          </div>
+          <p class="hint" style="margin:8px 0 0">Beispiel (Standard): 100 % + „ein bisschen dunkler“ → 70 % · 100 % + „gemütlich“ → 40 % · bei 30 % + „gemütlich“ → 23 %. Ausgeschaltete Lichter: „ein bisschen heller“ → 30 %, „richtig hell“ → 100 %.</p>
+        </div>
+        </div>
+        <div id="vp-vol" hidden>
+        <div class="sect" style="margin-top:0;padding-top:0;border-top:0"><h2 class="sec">Lautstärke per Sprache („lauter / ein bisschen leiser / viel lauter“)</h2>
+          <div class="frm">
+            <label class="fl">Stufen</label>
+            <div class="ctr"><span class="hint">„ein bisschen“</span> <input type="number" id="m-klein" min="1" max="50" style="width:64px">
+              <span class="hint">normal</span> <input type="number" id="m-mittel" min="1" max="50" style="width:64px">
+              <span class="hint">„viel“</span> <input type="number" id="m-gross" min="1" max="50" style="width:64px">
+              <span class="hint">Punkte auf der Skala 0–100 (feste Schritte, keine Prozent vom aktuellen Wert)</span></div>
+            <label class="fl" for="m-max">Obergrenze</label>
+            <div class="ctr"><input type="number" id="m-max" min="5" max="100" style="width:64px">
+              <span class="hint">Sprachbefehle stellen nie lauter als diesen Wert („volle Pulle“-Schutz); die Oberfläche ist nicht begrenzt</span></div>
+          </div>
+        </div>
+        </div>
+
+
+      </div>`;
+    setVTab(vTab);
+    loadVoice();
+  } else if (cfgSub === 'devices') {
+    b.innerHTML = `<div id="learnbox"></div><div id="t-devices"><div class="panel"><span class="hint">lade …</span></div></div>`;
+    loadDevices();
+  } else if (cfgSub === 'modules') {
+    b.innerHTML = `<div class="panel" id="blu"></div><div class="panel" id="kodi" style="margin-top:16px"></div>
+      <p class="hint">Module sprechen die eigene Schnittstelle eines Geräts (BluOS, KODI) – zusätzlich zu dem, was der
+      Control4-Treiber liefert. Neue Treiber ohne eigenes Modul: Einrichtung › Geräte › „Gerät anlernen“.</p>`;
+    loadBlu();
+    loadKodi();
+  } else {
+    b.innerHTML = '';
+  }
+  if (cfgSub === 'control4') { loadWsBox(); }
+  clearInterval(wsPoll);
+  clearInterval(voicePoll);
+  $('#roomsPanel').style.display = cfgSub === 'ui' ? '' : 'none';
+  $('#camPanel').style.display = cfgSub === 'cameras' ? '' : 'none';
+}
+let wsPoll;
+let voicePoll;
+
+// ---- Sprachdienst c4voice ---------------------------------------------------------
+let voiceRooms = [], voiceCfgCache = null, vTab = 'dienst';
+function setVTab(t) {
+  vTab = t;
+  if (t === 'tts') loadVoiceBox();   // Statuszeile der Sprachausgabe sofort füllen
+  const map = { dienst: 'vp-dienst', llm: 'vp-llm', mics: 'vp-mics', tts: 'vp-tts', wissen: 'vp-wissen', licht: 'vp-licht', vol: 'vp-vol' };
+  for (const [k, id] of Object.entries(map)) {
+    const p = document.getElementById(id); if (p) p.hidden = k !== t;
+  }
+  document.querySelectorAll('#cfg-nav [data-vt]').forEach(b => b.classList.toggle('on', b.dataset.vt === t));
+}
+async function loadVoice() {
+  try {
+    const [c, rms] = await Promise.all([api('/api/voice/config'), api('/api/rooms')]);
+    voiceCfgCache = c; voiceRooms = rms;
+    if ($('#v-enabled')) {
+      $('#v-enabled').checked = !!c.enabled;
+      $('#v-port').value = c.port;
+      $('#v-wake').checked = !!c.wake.enabled;
+      $('#v-wthr').value = c.wake.threshold ?? 0.5;
+      $('#v-wverify').checked = c.wake.verify !== false;
+      $('#v-stt').value = c.stt.model; sttKind();
+      $('#v-lang').value = c.lang === 'en' ? 'en' : 'de';
+      $('#v-hint').value = c.stt.hint || '';
+      $('#v-sttthreads').value = c.stt.threads || 4;
+      $('#v-sttbeam').value = c.stt.beam || 1;
+      $('#v-llmurl').value = c.llm.url;
+      $('#v-llmmodel').value = c.llm.model;
+      $('#v-llmka').value = c.llm.keep_alive_min ?? 60; $('#v-llmctx').value = c.llm.num_ctx ?? 0;
+      $('#v-bridgeurl').value = c.bridge_url;
+      const a = c.adjust || {};
+      const av = (id, val) => { const el = $(id); if (el && val != null) el.value = val; };
+      av('#v-ak-up', (a.klein || {}).up); av('#v-ak-down', (a.klein || {}).down);
+      av('#v-am-up', (a.mittel || {}).up); av('#v-am-down', (a.mittel || {}).down);
+      av('#v-ag-up', (a.gross || {}).up); av('#v-ag-down', (a.gross || {}).down);
+      av('#v-cozy-below', a.cozy_below); av('#v-cozy-down', a.cozy_down); av('#v-minlevel', a.min_level);
+      const mu = c.music || {}, st = mu.steps || {};
+      av('#m-klein', st.klein); av('#m-mittel', st.mittel); av('#m-gross', st.gross); av('#m-max', mu.max_volume);
+      const tt = c.tts || {};
+      $('#t-enabled').checked = !!tt.enabled; $('#t-followup').checked = tt.followup !== false;
+      $('#t-mode').value = tt.mode || 'full';
+      const tq = tt.qwen || {};
+      $('#t-eng').value = tt.engine || 'piper'; ttsEng();
+      api('/api/voice/tts/pocket-voices').then(l => { const cur = (tt.pocket || {}).voice || 'eponine';
+        $('#t-pvoice').innerHTML = l.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join(''); }).catch(() => { });
+      $('#t-qdir').value = tq.dir || ''; $('#t-qtext').value = tq.ref_text || ''; $('#t-qmodel').value = tq.model || 'model-base';
+      api('/api/voice/tts/qwen-voices').then(l => { const cur = tq.ref || 'qwen_ref_ruhig.wav';
+        if (!l.some(v => v.file === cur)) l.push({ file: cur, name: cur, text: '' });
+        $('#t-qref').innerHTML = l.map(v => `<option value="${esc(v.file)}" data-text="${esc(v.text)}" ${v.file === cur ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
+        $('#t-qref').onchange = () => { const o = $('#t-qref').selectedOptions[0]; if (o && o.dataset.text) $('#t-qtext').value = o.dataset.text; };
+      }).catch(() => { });
+      $('#t-speed').value = tt.speed || 1; $('#t-speed').oninput();
+      $('#t-volume').value = tt.volume || 1; $('#t-volume').oninput();
+      loadTtsVoices();
+      const as = c.assist || {}, aw = as.weather || {}, ab = as.web || {}, al = as.answer_llm || {};
+      $('#a-w-on').checked = aw.enabled !== false; $('#a-place').value = aw.place || '';
+      $('#a-lat').value = aw.lat ?? ''; $('#a-lon').value = aw.lon ?? '';
+      $('#a-web-on').checked = !!ab.enabled; $('#a-prov').value = ab.provider || 'searxng';
+      $('#a-sx').value = ab.searxng_url || ''; $('#a-n').value = ab.results || 5;
+      $('#a-llmurl').value = al.url || ''; $('#a-llmmodel').value = al.model || '';
+      $('#a-llmka').value = al.keep_alive_min ?? 60; $('#a-llmctx').value = al.num_ctx ?? 0;
+      loadAssistState();
+      loadPrompts(c);
+      fillMicRows(c);
+    }
+  } catch (e) { /* noch keine Config */ }
+  loadVoiceBox();
+}
+function fillMicRows(c, keep) {
+  keep = keep || {};   // ungespeicherte Auswahl des Nutzers bewahren, wenn Zeilen neu entstehen
+  const seen = (window._vsvc && window._vsvc.mics) || [];
+  const names = [...new Set([...Object.keys(c.mics || {}), ...seen.map(m => m.name)])];
+  const el = $('#microws'); if (!el) return;
+  const roomOpts = (sel) => '<option value="">– keiner –</option>' +
+    voiceRooms.map(r => `<option value="${esc(r.name)}" ${sel === r.name ? 'selected' : ''}>${esc(r.name)}</option>`).join('');
+  el.innerHTML = names.length ? names.map(n => {
+    const last = seen.find(m => m.name === n);
+    const rooms = Array.isArray((c.mics || {})[n]) ? c.mics[n] :
+      (typeof (c.mics || {})[n] === 'string' ? [c.mics[n]] : []);
+    const sel = i => (keep[n] && keep[n][i] != null) ? keep[n][i] : rooms[i];
+    return `<div class="row" data-mic="${esc(n)}">
+      <b style="flex:0 1 200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(n)}">${esc(n)}</b>
+      <select class="micsel" style="width:170px">${roomOpts(sel(0))}</select>
+      <select class="micsel" style="width:170px">${roomOpts(sel(1))}</select>
+      <select class="micsel" style="width:170px">${roomOpts(sel(2))}</select>
+      <span class="hint">${last ? new Date(last.last_seen * 1000).toLocaleTimeString('de-DE') : ''}${last && last.ip ? ' · ' + esc(last.ip) : ''}</span>
+    </div>`; }).join('')
+    : '<span class="hint">Noch keine Mikrofone gesehen – einmal den Mikrofon-Test verbinden, dann erscheinen sie hier.</span>';
+}
+async function loadVoiceBox() {
+  const box = $('#voicebox'); if (!box) return;
+  try {
+    const s = await api('/api/voice/status');
+    window._vsvc = s.service || {};
+    const svc = window._vsvc;
+    const w = svc.wake || null, stt = svc.stt || null, llm = svc.llm || null, tts = svc.tts || null;
+    const up = s.uptime_s ? `${Math.floor(s.uptime_s / 60)}:${String(s.uptime_s % 60).padStart(2, '0')} min` : '';
+    const lines = (s.lines || []).slice(-8).map(l => {
+      try { const j = JSON.parse(l); return `${new Date(j.ts * 1000).toLocaleTimeString('de-DE')} · ${esc(j.event)}${j.text ? ' · ' + esc(j.text) : ''}${j.client ? ' · ' + esc(j.client) : ''}${j.took ? ' · ' + j.took + 's' : ''}`; }
+      catch { return esc(l); }
+    }).join('\n');
+    const ts = $('#tts-status');
+    if (ts) ts.innerHTML = s.running ? `${`      <div class="row" style="margin:0">
+        <span class="dot ${!tts || !tts.enabled ? '' : (tts.ready ? 'ok' : 'wait')}" style="margin-right:6px${!tts || !tts.enabled ? ';background:var(--muted)' : ''}"></span>
+        <b style="flex:0 0 250px">Sprachausgabe · ${tts ? ({ qwen3: 'Qwen3-TTS', pocket: 'Pocket TTS', piper: 'Piper' }[tts.engine] || esc(tts.engine)) : '—'}</b>
+        <span class="hint">${!tts ? '—' : !tts.enabled ? 'aus' : esc(tts.voice || '') + ' · ' + (tts.ready
+          ? (tts.engine === 'qwen3' ? 'Dienst läuft (Port ' + tts.port + ', Grafikkarte, ' + (tts.model === 'model-base-small' ? '0.6B' : '1.7B') + ')' : tts.engine === 'pocket' ? 'geladen (Grafikkarte)' : 'bereit (CPU)')
+          : (tts.engine === 'qwen3' ? 'Dienst startet …' : tts.engine === 'pocket' ? 'lädt beim ersten Satz' : 'Stimme fehlt'))}</span>
+      </div>`}` : '<span class="hint"><span class="dot bad"></span> Sprachdienst c4voice gestoppt</span>';
+    box.innerHTML = `
+      <div class="row"><span class="dot ${s.running ? 'ok' : 'bad'}"></span><b>Sprachdienst c4voice ${s.running ? 'läuft' : 'gestoppt'}</b>
+        <span class="hint">${s.pid ? 'PID ' + s.pid : ''}${up ? ' · seit ' + up : ''}${s.restarts ? ' · ' + s.restarts + ' autom. Neustarts' : ''}${s.enabled ? ' · Autostart an' : ''}</span>
+      </div>
+      <div class="row drybar ${s.dry_run ? '' : 'live'}" style="margin-top:8px">
+        <b style="flex:0 0 auto">${s.dry_run ? 'Trockenlauf AN' : 'Trockenlauf AUS – Sprachbefehle schalten ECHT'}</b>
+        <span class="hint">${s.dry_run ? 'Befehle werden entschieden und angezeigt, aber nicht ans Haus gesendet.' : 'Jeder erkannte Befehl wird im Haus ausgeführt.'}</span>
+        <span class="spacer"></span>
+        <div class="seg"><button type="button" class="${s.dry_run ? 'on' : ''}" onclick="setDryRun(true)">Nur simulieren</button><button type="button" class="${s.dry_run ? '' : 'on'}" onclick="setDryRun(false)">Echt schalten</button></div>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <span class="hint" style="flex:0 0 auto">Bausteine im Dienst (Start/Neustart/Stopp gelten für alle):</span>
+      </div>
+      <div class="row" style="margin-left:10px">
+        <span class="dot ${w ? (w.loaded ? 'ok' : (w.error ? 'bad' : 'wait')) : 'bad'}" style="margin-right:6px"></span>
+        <b style="flex:0 0 250px">Wake-Word · openWakeWord</b>
+        <span class="hint">${w ? (esc(w.model) + ' · ' + (w.loaded ? 'geladen (CPU)' : w.error ? '✗ ' + esc(String(w.error).slice(0, 60)) : 'lädt beim ersten Audio')) : '—'}</span>
+      </div>
+      <div class="row" style="margin-left:10px">
+        <span class="dot ${stt ? (stt.ready ? 'ok' : 'wait') : 'bad'}" style="margin-right:6px"></span>
+        <b style="flex:0 0 250px">Spracherkennung · Whisper</b>
+        <span class="hint">${stt ? esc(stt.model) + ' · ' + esc(stt.device || 'CPU') + ' · '
+          + (stt.ready ? (stt.port ? 'Dienst läuft (Port ' + stt.port + ')' : 'geladen')
+             : (stt.port ? 'Dienst startet …' : 'lädt beim ersten Sprechen'))
+          + (stt.active && stt.active !== stt.model ? ' · noch aktiv: ' + esc(stt.active) + ' (wechselt beim nächsten Satz)' : '') : '—'}</span>
+      </div>
+      <div class="row" style="margin-left:10px">
+        <span class="dot ${llm ? (llm.loaded ? 'ok' : (llm.reachable ? 'wait' : 'bad')) : 'bad'}" style="margin-right:6px"></span>
+        <b style="flex:0 0 250px">Entscheidung · Ollama (extern)</b>
+        <span class="hint">${llm ? esc(llm.model) + ' · ' + esc(String(llm.url || '').replace(/^https?:\/\//, '')) + ' · '
+          + (llm.loaded ? 'geladen, ' + llm.gpu_pct + ' % auf der GPU' : (llm.reachable ? 'nicht geladen (lädt beim ersten Satz)' : 'Ollama nicht erreichbar')) : '—'}</span>
+      </div>
+      <div class="row" style="margin-left:10px">
+        <span class="dot ${!tts || !tts.enabled ? '' : (tts.ready ? 'ok' : 'wait')}" style="margin-right:6px${!tts || !tts.enabled ? ';background:var(--muted)' : ''}"></span>
+        <b style="flex:0 0 250px">Sprachausgabe · ${tts ? ({ qwen3: 'Qwen3-TTS', pocket: 'Pocket TTS', piper: 'Piper' }[tts.engine] || esc(tts.engine)) : '—'}</b>
+        <span class="hint">${!tts ? '—' : !tts.enabled ? 'aus' : esc(tts.voice || '') + ' · ' + (tts.ready
+          ? (tts.engine === 'qwen3' ? 'Dienst läuft (Port ' + tts.port + ', Grafikkarte, ' + (tts.model === 'model-base-small' ? '0.6B' : '1.7B') + ')' : tts.engine === 'pocket' ? 'geladen (Grafikkarte)' : 'bereit (CPU)')
+          : (tts.engine === 'qwen3' ? 'Dienst startet …' : tts.engine === 'pocket' ? 'lädt beim ersten Satz' : 'Stimme fehlt'))}</span>
+      </div>
+      <div class="row" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+        <span class="spacer"></span>
+        <button class="act" onclick="voiceAction('start')">Start</button>
+        <button class="act" onclick="voiceAction('restart')">Neustart</button>
+        <button class="act" onclick="voiceAction('stop')">Stopp</button>
+      </div>
+      ${s.last_error ? `<div class="row"><span class="small" style="color:var(--err)">${esc(s.last_error)}</span></div>` : ''}
+      ${lines ? `<pre class="small" style="margin:6px 0 0;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;color:var(--muted);max-height:150px;overflow:auto">${lines}</pre>` : ``}`;
+    // Wake-Modell-Status + verfügbare Modelle nachziehen (w ist oben bereits definiert)
+    if (w) {
+      const sel = $('#v-wmodel');
+      const opts = (w.available && w.available.length) ? w.available : ['hey_jarvis', 'hey_mycroft', 'hey_rhasspy'];
+      if (sel && sel.options.length !== opts.length) {
+        sel.innerHTML = opts.map(m => `<option ${m === (voiceCfgCache?.wake?.model || 'hey_jarvis') ? 'selected' : ''}>${esc(m)}</option>`).join('');
+      }
+      if (sel) sel.value = voiceCfgCache?.wake?.model || w.model;
+      const ws2 = $('#wstate');
+      if (ws2) {
+        const active = voiceCfgCache?.wake?.model || w.model;
+        ws2.innerHTML = opts.map(m => {
+          if (m !== active) return `<span class="wchip">${esc(m)}</span>`;
+          const cls = w.loaded ? 'good' : (w.error ? 'bad' : 'wait');
+          const mark = w.loaded ? '✓ geladen' : (w.error ? '✗ Fehler' : '… lädt beim ersten Audio');
+          return `<span class="wchip ${cls}" title="${esc(mark)}">${esc(m)} · ${mark}</span>`;
+        }).join(' ') + (w.error && !w.available.includes(active)
+          ? ` <span class="wchip bad" title="${esc(String(w.error).slice(0, 120))}">${esc(active)} · ✗</span>` : '');
+      }
+    }
+    // Neue Mikrofone erscheinen sofort – ohne die laufende Bearbeitung zu verlieren
+    if ($('#microws')) {
+      const c2 = voiceCfgCache || { mics: {} };
+      const seen2 = (window._vsvc && window._vsvc.mics) || [];
+      const names2 = [...new Set([...Object.keys(c2.mics || {}), ...seen2.map(m => m.name)])];
+      const cur = [...document.querySelectorAll('#microws [data-mic]')].map(r => r.dataset.mic);
+      const same = names2.length === cur.length && names2.every(n => cur.includes(n));
+      if (!same) {
+        const keep = {};
+        document.querySelectorAll('#microws [data-mic]').forEach(r => {
+          keep[r.dataset.mic] = [...r.querySelectorAll('select.micsel')].map(s => s.value);
+        });
+        fillMicRows(c2, keep);
+      }
+    }
+  } catch (e) { box.innerHTML = '<span class="hint">Status nicht verfügbar</span>'; }
+  clearInterval(voicePoll);
+  voicePoll = setInterval(() => { if (cfgSub === 'voice' && $('#voicebox')) loadVoiceBox(); else clearInterval(voicePoll); }, 3000);
+}
+async function setDryRun(on) {
+  if (!on && !confirm('Trockenlauf ausschalten?' + String.fromCharCode(10, 10) + 'Danach schalten erkannte Sprachbefehle ECHT im Haus.')) return;
+  try { await put('/api/voice/dryrun', { on }); } catch (e) { alert('Fehler: ' + e.message); }
+  loadVoiceBox();
+}
+async function voiceAction(a) {
+  try { await post('/api/voice/' + a); } catch (e) { alert('Fehler: ' + e.message); }
+  setTimeout(loadVoiceBox, 800);
+}
+async function wakeDownload(btn) {
+  btn.disabled = true; const old = btn.textContent; btn.textContent = 'lädt …';
+  try {
+    const r = await post('/api/voice/wake/download');
+    $('#wstate').textContent = r.ok ? 'Modelle heruntergeladen ✓ – jetzt „Neustart“' : 'Fehler: ' + (r.error || r.log || '');
+  } catch (e) { $('#wstate').textContent = 'Fehler: ' + e.message; }
+  btn.disabled = false; btn.textContent = old;
+}
+// ---- Prompts (Erweitert) ----
+let promptDefaults = null;
+// Sprache des Assistenten: sofort speichern, dann neu laden – Anweisungen und Vorgaben gehören zur Sprache
+async function vLang(l) {
+  try { await put('/api/voice/config', { lang: l }); } catch (e) { alert(e.message); return; }
+  promptDefaults = null;
+  await loadVoice();
+}
+async function loadPrompts(c) {
+  try { promptDefaults = promptDefaults || await api('/api/voice/prompts/defaults'); } catch { return; }
+  for (const k of ['house', 'answer', 'examples']) {
+    if (!$('#p-' + k) || promptDefaults[k] == null) continue;
+    const own = ((c.prompts || {})[k] || '').trim();
+    $('#p-' + k).value = own || promptDefaults[k];
+    $('#p-' + k).oninput = () => promptState(k);
+    promptState(k);
+  }
+}
+function promptState(k) {
+  const el = $('#p-' + k), st = $('#p-' + k + '-st'); if (!el || !promptDefaults) return;
+  st.textContent = el.value.trim() === promptDefaults[k].trim() ? 'eingebaut' : 'eigene Anweisungen';
+}
+function promptReset(k) { $('#p-' + k).value = promptDefaults[k]; promptState(k); }
+function promptBody() {   // unverändert = leer speichern → eingebaute Fassung bleibt aktuell
+  if (!promptDefaults || !$('#p-house')) return undefined;
+  const v = k => { const x = $('#p-' + k).value.trim(); return x === promptDefaults[k].trim() ? '' : x; };
+  return { house: v('house'), answer: v('answer'), ...($('#p-examples') ? { examples: v('examples') } : {}) };
+}
+
+// ---- Wissen & Wetter ----
+async function loadAssistState() {
+  try {
+    const [s, c] = await Promise.all([api('/api/assist/status'), api('/api/config')]);
+    const el = $('#a-wstate'); if (!el) return;
+    el.textContent = (s.web.ready ? '✓ bereit' : '– ' + (s.web.reason || 'nicht bereit')) + (c.exa_key_set ? ' · Exa-Schlüssel gesetzt' : '');
+    $('#a-exa').placeholder = c.exa_key_set ? 'gesetzt – leer lassen = unverändert' : 'noch nicht gesetzt';
+  } catch (e) { /* egal */ }
+}
+// Ort: Vorschläge beim Tippen als Liste direkt unter dem Feld; Auswahl speichert sofort
+let geoTimer, geoHits = [], geoSel = -1;
+function geoType() {
+  clearTimeout(geoTimer);
+  const n = $('#a-place').value.trim();
+  if (n.length < 2) { geoClose(); return; }
+  geoTimer = setTimeout(async () => {
+    try { geoHits = await api('/api/assist/geocode?name=' + encodeURIComponent(n)); }
+    catch (e) { geoHits = []; $('#a-geo').textContent = 'Fehler: ' + e.message; }
+    geoSel = -1; geoDraw();
+  }, 350);
+}
+function geoDraw() {
+  const dd = $('#a-geodd');
+  dd.innerHTML = geoHits.length ? geoHits.map((x, i) => `<div class="${i === geoSel ? 'sel' : ''}" onmousedown="pickGeo(${i})">
+      <b>${esc(x.name)}</b> <span>${esc([x.admin, x.country].filter(Boolean).join(', '))}</span></div>`).join('')
+    : '<div class="none">nichts gefunden</div>';
+  dd.hidden = false;
+}
+function geoKey(e) {
+  if ($('#a-geodd').hidden || !geoHits.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    geoSel = (geoSel + (e.key === 'ArrowDown' ? 1 : -1) + geoHits.length) % geoHits.length; geoDraw(); e.preventDefault();
+  } else if (e.key === 'Enter') { pickGeo(Math.max(0, geoSel)); e.preventDefault(); }
+  else if (e.key === 'Escape') geoClose();
+}
+function geoClose() { const dd = $('#a-geodd'); if (dd) dd.hidden = true; }
+function pickGeo(i) {
+  const x = geoHits[i]; if (!x) return;
+  $('#a-lat').value = x.lat; $('#a-lon').value = x.lon; $('#a-place').value = x.name;
+  geoClose();
+  vToggle({ assist: { weather: { place: x.name, lat: x.lat, lon: x.lon } } }, `Ort ${x.name}`);
+}
+async function weatherTest(day) {
+  const m = $('#a-wmsg'), lat = $('#a-lat').value, lon = $('#a-lon').value;
+  if (lat === '' || lon === '') { m.textContent = 'erst einen Ort wählen'; return; }
+  m.textContent = 'frage ab …';
+  try {
+    const w = await api(`/api/assist/weather?day=${day}&lat=${lat}&lon=${lon}&place=${encodeURIComponent($('#a-place').value)}`);
+    m.textContent = '🔊 ' + w.text;
+    $('#t-text') && ($('#t-text').value = w.text);
+    ttsSay(w.text);
+  } catch (e) { m.textContent = 'Fehler: ' + e.message; }
+}
+async function searchTest() {
+  const box = $('#a-sres'); box.textContent = 'suche …';
+  try {
+    const r = await api(`/api/assist/search?provider=${$('#a-prov').value}&q=${encodeURIComponent($('#a-q').value)}`);
+    box.innerHTML = r.results.length ? r.results.map(x => `<div style="margin:6px 0"><b>${esc(x.title)}</b> <span class="hint">${esc(x.url)}</span><br>${esc(x.snippet)}</div>`).join('')
+      : '<span class="hint">keine Treffer</span>';
+  } catch (e) { box.textContent = 'Fehler: ' + e.message + ' (Einstellungen vorher speichern)'; }
+}
+async function ttsSay(text) {   // Probe-Ansage (nur wenn c4voice läuft und eine Stimme installiert ist)
+  try {
+    const r = await fetch('/api/voice/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    if (r.ok) { if (ttsAudio) ttsAudio.pause(); ttsAudio = new Audio(URL.createObjectURL(await r.blob())); ttsAudio.play(); }
+  } catch { /* egal */ }
+}
+
+// ---- Sprachausgabe (Piper) ----
+async function loadTtsVoices() {
+  const box = $('#t-voices'); if (!box) return;
+  let v;
+  try { v = await api('/api/voice/tts/voices'); } catch (e) { box.innerHTML = '<span class="hint">nicht verfügbar</span>'; return; }
+  const active = (voiceCfgCache && voiceCfgCache.tts && voiceCfgCache.tts.voice) || 'de_DE-thorsten-medium';
+  $('#t-engine').textContent = v.engine ? '' : '⚠ Piper nicht installiert (pip install piper-tts)';
+  const sel = $('#t-voice');
+  sel.innerHTML = v.installed.length
+    ? v.installed.map(i => `<option value="${esc(i.voice)}" ${i.voice === active ? 'selected' : ''}>${esc(i.voice)}</option>`).join('')
+    : '<option value="">– keine Stimme installiert –</option>';
+  box.innerHTML = v.available.map(a => `<div class="row">
+      <span class="dot ${a.installed ? 'ok' : ''}" style="${a.installed ? '' : 'background:var(--muted)'}"></span>
+      <b style="flex:0 0 260px">${esc(a.voice)}</b><span class="hint" style="flex:1">${esc(a.label)}</span>
+      ${a.installed
+        ? (a.voice === active ? '<span class="hint">aktiv</span>' : `<button class="act danger" onclick="ttsDelete('${a.voice}')">Entfernen</button>`)
+        : `<button class="act" onclick="ttsDownload('${a.voice}', this)">Herunterladen</button>`}
+    </div>`).join('');
+}
+async function ttsDownload(voice, btn) {
+  btn.disabled = true; btn.textContent = 'lädt … (~60 MB)';
+  try { await post('/api/voice/tts/download', { voice }); } catch (e) { alert('Fehler: ' + e.message); }
+  loadTtsVoices();
+}
+async function ttsDelete(voice) {
+  if (!confirm(`Stimme ${voice} entfernen?`)) return;
+  try { await api('/api/voice/tts/voices/' + voice, { method: 'DELETE' }); } catch (e) { alert(e.message); }
+  loadTtsVoices();
+}
+function ttsEng() { const e = $('#t-eng').value; $('#t-qwen').hidden = e !== 'qwen3'; $('#t-pocket').hidden = e !== 'pocket'; }
+// CPU-Kerne nur bei Erkennung auf der CPU zeigen (GPU-Dienste rechnen auf der Grafikkarte)
+function sttKind() {
+  const gpu = /^whisper-(vulkan|gpu)/.test($('#v-stt').value);
+  document.querySelectorAll('.cpuonly').forEach(e => { e.hidden = gpu; });
+}
+let ttsAudio = null;
+async function ttsTest(btn) {
+  const m = $('#t-msg'); m.textContent = 'erzeuge …'; btn.disabled = true;
+  try {
+    const t0 = performance.now();
+    const r = await fetch('/api/voice/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: $('#t-text').value, voice: $('#t-voice').value, speed: +$('#t-speed').value, volume: +$('#t-volume').value }) });
+    if (!r.ok) { let d = ''; try { d = (await r.json()).detail; } catch { } throw new Error(d || r.status); }
+    const blob = await r.blob();
+    if (ttsAudio) ttsAudio.pause();
+    ttsAudio = new Audio(URL.createObjectURL(blob));
+    await ttsAudio.play();
+    m.textContent = `▶ läuft (${Math.round(performance.now() - t0)} ms bis zum Ton)`;
+  } catch (e) { m.textContent = 'Fehler: ' + e.message; }
+  btn.disabled = false;
+}
+
+// Mikrofon-Test als kleines, verschiebbares Fenster (Log im Admin bleibt sichtbar)
+function openMicTest() {
+  const w = 460, h = Math.min(700, screen.height - 120);
+  window.open('/voicetest', 'c4voicetest',
+    `width=${w},height=${h},left=${Math.max(20, screen.width - w - 60)},top=60`);
+}
+
+// Schalter speichern sofort (nur ihr eigener Wert – ungespeicherte Textfelder bleiben unberührt)
+async function vToggle(body, note) {
+  const m = $('#v-msg');
+  try {
+    const r = await put('/api/voice/config', body);
+    if (r && r.config) voiceCfgCache = r.config;
+    m.textContent = 'Gespeichert ✓' + (note ? ' – ' + note : '');
+  } catch (e) { m.textContent = 'Fehler: ' + e.message; }
+  setTimeout(() => { if (m.textContent.startsWith('Gespeichert')) m.textContent = ''; }, 3500);
+}
+async function saveVoiceConfig() {
+  const m = $('#v-msg');
+  const mics = {};
+  document.querySelectorAll('#microws [data-mic]').forEach(row => {
+    const rooms = [...row.querySelectorAll('.micsel')].map(s => s.value).filter(Boolean);
+    if (rooms.length) mics[row.dataset.mic] = rooms;
+  });
+  const num = (id, dflt) => { const v = parseFloat($(id).value); return isNaN(v) ? dflt : v; };
+  const body = {
+    enabled: $('#v-enabled').checked,
+    port: parseInt($('#v-port').value, 10) || 8090,
+    mics,
+    wake: { enabled: $('#v-wake').checked, model: $('#v-wmodel').value || 'hey_jarvis',
+            threshold: Math.min(0.9, Math.max(0.1, +$('#v-wthr').value || 0.5)), verify: $('#v-wverify').checked },
+    lang: $('#v-lang').value,
+    stt: { model: $('#v-stt').value, language: $('#v-lang').value, hint: $('#v-hint').value.trim(),
+           threads: +$('#v-sttthreads').value || 4, beam: +$('#v-sttbeam').value || 1 },
+    llm: { url: $('#v-llmurl').value.trim() || 'http://localhost:11434', model: $('#v-llmmodel').value.trim(),
+           keep_alive_min: $('#v-llmka').value, num_ctx: $('#v-llmctx').value },
+    bridge_url: $('#v-bridgeurl').value.trim() || 'http://127.0.0.1:8080',
+    adjust: {
+      klein: { up: num('#v-ak-up', 33), down: num('#v-ak-down', 30) },
+      mittel: { up: num('#v-am-up', 50), down: num('#v-am-down', 50) },
+      gross: { up: num('#v-ag-up', 100), down: num('#v-ag-down', 60) },
+      cozy_below: num('#v-cozy-below', 30), cozy_down: num('#v-cozy-down', 25),
+      min_level: num('#v-minlevel', 5) },
+    music: { steps: { klein: num('#m-klein', 5), mittel: num('#m-mittel', 10), gross: num('#m-gross', 20) },
+      max_volume: num('#m-max', 60) },
+    prompts: promptBody(),
+    assist: {
+      weather: { enabled: $('#a-w-on').checked, place: $('#a-place').value.trim(),
+        lat: $('#a-lat').value === '' ? null : +$('#a-lat').value, lon: $('#a-lon').value === '' ? null : +$('#a-lon').value },
+      web: { enabled: $('#a-web-on').checked, provider: $('#a-prov').value, searxng_url: $('#a-sx').value.trim(),
+        results: parseInt($('#a-n').value, 10) || 5 },
+      answer_llm: { url: $('#a-llmurl').value.trim(), model: $('#a-llmmodel').value.trim(),
+                    keep_alive_min: $('#a-llmka').value, num_ctx: $('#a-llmctx').value } },
+    tts: { enabled: $('#t-enabled').checked, followup: $('#t-followup').checked, mode: $('#t-mode').value,
+      engine: $('#t-eng').value, ...($('#t-pvoice').value ? { pocket: { voice: $('#t-pvoice').value } } : {}), qwen: { dir: $('#t-qdir').value.trim(), model: $('#t-qmodel').value, ref: $('#t-qref').value.trim(), ref_text: $('#t-qtext').value.trim() },
+      speed: +$('#t-speed').value, volume: +$('#t-volume').value,
+      ...($('#t-voice').value ? { voice: $('#t-voice').value } : {}) } };
+  // c4voice liest diese Werte nur beim Start (Spracherkennung, Wake-Word, Port, Bridge-Adresse) – alles andere sofort
+  const old = voiceCfgCache || {};
+  const pick = (o, path) => path.split('.').reduce((x, k) => (x || {})[k], o);
+  const RESTART = { 'port': 'Port', 'bridge_url': 'Bridge-URL', 'wake.enabled': 'Wake-Word an/aus', 'wake.model': 'Wake-Word-Modell',
+    'stt.model': 'Spracherkennungs-Modell', 'stt.language': 'Sprache der Erkennung', 'stt.hint': 'Erkennungs-Hinweis' };
+  const needs = Object.entries(RESTART).filter(([k]) => String(pick(old, k) ?? '') !== String(pick(body, k) ?? '')).map(([, l]) => l);
+  try {
+    if ($('#a-exa') && $('#a-exa').value) { await put('/api/config', { exa_key: $('#a-exa').value }); $('#a-exa').value = ''; }
+    const r = await put('/api/voice/config', body);
+    voiceCfgCache = (r && r.config) || { ...(voiceCfgCache || {}), ...body };
+    m.textContent = 'Gespeichert ✓';
+    const running = window._vsvc && window._vsvc.running;
+    if (needs.length && body.enabled && Object.keys(old).length &&
+        confirm(`Gespeichert. Diese Änderung wirkt erst nach einem Neustart des Sprachdienstes:\n• ${needs.join('\n• ')}\n\nJetzt neu starten?`)) {
+      m.textContent = 'Sprachdienst wird neu gestartet …';
+      try { await post('/api/voice/restart'); m.textContent = 'Gespeichert ✓ – Sprachdienst neu gestartet'; }
+      catch (e) { m.textContent = 'Gespeichert, Neustart fehlgeschlagen: ' + e.message; }
+    } else if (needs.length) {
+      m.textContent = 'Gespeichert ✓ – wirkt nach „Neustart“ des Sprachdienstes (' + needs.join(', ') + ')';
+    }
+    setTimeout(loadVoiceBox, 2500);
+  } catch (e) { m.textContent = 'Fehler: ' + e.message; }
+  setTimeout(() => m.textContent = '', 4000);
+}
+
+async function loadWsBox() {
+  const box = $('#wsbox'); if (!box) return;
+  try {
+    const [w, c] = await Promise.all([api('/api/ws/status'), api('/api/state/status').catch(() => null)]);
+    const pf = c ? `<div class="row"><span class="hint"><span class="dot ${c.push ? 'ok' : 'bad'}"></span>
+        Push-first: <b>${c.push ? 'aktiv' : 'aus – Abfrage alle ' + c.ttl_s + ' s'}</b> · ${c.loads} Director-Abrufe ·
+        ${c.hits} aus Zwischenspeicher · ${c.events} Ereignisse ausgewertet (${c.ignored} ignoriert) ·
+        ${c.subscribers} Oberfläche(n) verbunden${c.ui_agent ? ' · UI-Agent #' + c.ui_agent : ''}</span></div>` : '';
+    box.innerHTML = pf + `
+      <div class="row"><span><span class="dot ${w.connected ? 'ok' : 'bad'}"></span><b>${w.connected ? 'verbunden' : 'getrennt'}</b>
+        <span class="hint">· ${w.subscribed_items} Items abonniert · ${w.events_total} Events · Token-Erneuerung alle ${Math.round(w.token_refresh_s / 3600)} h</span></span>
+        <span class="spacer"></span>
+        <button class="act" onclick="wsAction('restart')">Neu verbinden</button>
+        <button class="act" onclick="wsAction('resubscribe')">Neu abonnieren</button>
+        <span id="ws-msg" class="hint"></span></div>
+      ${w.last_error ? `<div class="row"><span class="small" style="color:var(--err)">${esc(w.last_error)}</span></div>` : ''}
+      <div class="row"><label class="hint"><input type="checkbox" ${w.discover ? 'checked' : ''} ${w.tap_ok ? '' : 'disabled'} onchange="wsDiscover(this.checked)">
+        Diagnose: <b>alle</b> Director-Ereignisse mitschneiden (Standard aus)</label>
+        ${w.discover ? `<span class="hint">· seit ${new Date(w.discover_since * 1000).toLocaleTimeString('de-DE')} · ${w.discover_senders} Absender</span>
+          <button class="act" onclick="wsSenders()">Absender anzeigen</button><button class="act" onclick="wsDiscover(true, true)">Zurücksetzen</button>` : ''}
+        ${w.tap_ok ? '' : '<span class="hint" style="color:var(--warn)">nicht verfügbar (pyControl4-Version)</span>'}</div>
+      <div id="wsdisc"></div>`;
+  } catch (e) { box.innerHTML = '<span class="hint">Status nicht verfügbar</span>'; }
+  clearInterval(wsPoll);
+  // Statuszeile alle 5 s auffrischen – die Absender-Tabelle (#wsdisc) bleibt dabei stehen
+  wsPoll = setInterval(() => { if (cfgSub === 'control4' && $('#wsbox')) { const keep = $('#wsdisc') && $('#wsdisc').innerHTML; loadWsBox().then(() => { if (keep && $('#wsdisc')) $('#wsdisc').innerHTML = keep; }); } else clearInterval(wsPoll); }, 5000);
+}
+async function wsDiscover(on, reset = false) {
+  try { await put('/api/ws/discover', { on, reset }); } catch (e) { alert('Fehler: ' + e.message); }
+  if (!on || reset) { const d = $('#wsdisc'); if (d) d.innerHTML = ''; }
+  loadWsBox();
+}
+// Absender-Übersicht: wer schickt was (registriert = wird schon ausgewertet; sonst Kandidat zum Aufnehmen)
+async function wsSenders() {
+  const box = $('#wsdisc'); box.innerHTML = '<span class="hint">lade …</span>';
+  try {
+    const r = await api('/api/ws/discover');
+    const ago = t => t ? Math.round((Date.now() / 1000 - t)) + ' s' : '';
+    box.innerHTML = `<div class="scroll" style="max-height:480px;margin-top:8px"><table>
+      <tr><th>ID</th><th>Name</th><th>Proxy</th><th>Raum</th><th>Anzahl</th><th>zuletzt vor</th><th>Felder</th><th>ausgewertet</th></tr>
+      ${r.senders.map(s => `<tr title="${esc(s.sample || '')}"><td>${s.id ?? '–'}</td><td><b>${esc(s.name || '?')}</b></td>
+        <td class="hint">${esc(s.proxy || '')}</td><td class="hint">${esc(s.room || '')}</td><td>${s.count}</td><td class="hint">${ago(s.last)}</td>
+        <td class="small">${s.keys.slice(0, 6).map(([k, n]) => `${esc(k)} <span class="hint">×${n}</span>`).join(', ')}</td>
+        <td>${s.routed ? '✓' : '<span style="color:var(--warn)">nein</span>'}</td></tr>`).join('')}
+    </table></div><p class="hint">Maus über eine Zeile = letzte Nachricht. „nein" = pyControl4 verwirft das bisher.</p>`;
+  } catch (e) { box.innerHTML = '<span class="hint">Fehler: ' + esc(e.message) + '</span>'; }
+}
+
+// ---- Benutzerverwaltung (Rollen: admin = alles, user = bedienen + eigene Favoriten) ----
+async function loadUsers() {
+  const p = $('#usersPanel'); if (!p) return;
+  const [users, cf] = await Promise.all([api('/api/users').catch(() => null), api('/api/config').catch(() => ({}))]);
+  // Notfall-Login aus config.env: gilt nur, solange es keine Benutzerkonten gibt → als eigene Zeile zeigen
+  const legacy = cf.web_user ? (users && users.length
+    ? `<tr><td><b>${esc(cf.web_user)}</b></td><td class="hint">admin</td><td class="hint">config.env</td>
+        <td class="hint">Notfall-Login – inaktiv, solange Benutzerkonten existieren</td></tr>`
+    : `<tr><td><b>${esc(cf.web_user)}</b></td><td>admin</td><td class="hint">config.env</td>
+        <td style="white-space:nowrap">
+          <button class="act" onclick="resetLegacyPw()">Passwort setzen</button>
+          <button class="act primary" onclick="adoptLegacy()" title="Gleicher Name und gleiches Passwort, danach mit Rollen, Favoriten und „Geräte abmelden“">Als Benutzerkonto übernehmen</button>
+        </td></tr>`) : '';
+  const roleSel = u => `<select onchange="setUserRole('${esc(u.user)}', this.value)" style="width:110px">
+      <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+      <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option></select>`;
+  p.innerHTML = `
+    <div class="scroll"><table style="margin-bottom:12px"><tr><th>Benutzer</th><th>Rolle</th><th>angelegt</th><th>Aktionen</th></tr>
+      ${legacy}${users && users.length ? users.map(u => `<tr>
+        <td><b>${esc(u.user)}</b></td><td>${roleSel(u)}</td><td class="hint">${esc(u.created || '–')}</td>
+        <td style="white-space:nowrap">
+          <button class="act" onclick="resetUserPw('${esc(u.user)}')">Passwort setzen</button>
+          <button class="act" onclick="signoutUser('${esc(u.user)}')" title="Alle Geräte dieses Kontos abmelden (z. B. verlorenes Tablet)">Geräte abmelden</button>
+          <button class="act danger" onclick="delUser('${esc(u.user)}')">Löschen</button>
+        </td></tr>`).join('')
+        : legacy ? '' : '<tr><td colspan="4" style="color:var(--warn)">⚠ Noch kein Benutzer und kein Notfall-Login – jeder im Netz kann bedienen und hat Admin-Rechte. Unten das erste Konto anlegen: es wird automatisch <b>admin</b>, danach gilt Login-Pflicht.</td></tr>'}
+    </table></div>
+    <div class="row">
+      <b>Anlegen</b>
+      <input type="text" id="nu-name" placeholder="Benutzername" style="width:170px">
+      <input type="password" id="nu-pass" placeholder="Passwort (min. 6 Zeichen)" style="width:200px" autocomplete="new-password">
+      <select id="nu-role" style="width:110px" ${users && users.length ? '' : 'disabled'}><option value="user">user</option><option value="admin" ${users && users.length ? '' : 'selected'}>admin</option></select>
+      <button class="act primary" onclick="addUserUi()">${users && users.length ? 'Anlegen' : 'Admin-Konto anlegen'}</button>
+      <span class="hint" id="nu-msg"></span>
+    </div>
+    <p class="hint" style="margin:10px 0 0">Ab dem ersten Benutzer gilt Login-Pflicht. Eine Anmeldung gilt 1 Jahr und verlängert sich bei jeder Benutzung (Wandtablets bleiben angemeldet); „Geräte abmelden" beendet sie sofort. Das erste Konto wird immer <b>admin</b>.
+      <b>admin</b>: alles inkl. Admin-Oberfläche · <b>user</b>: bedienen, eigene Favoriten, eigenes Theme/Sprache.
+      Jeder Benutzer hat sein eigenes Startseiten-Layout; ohne eigenes gilt der Hausstandard.</p>`;
+}
+async function addUserUi() {
+  const m = $('#nu-msg');
+  try {
+    const r = await post('/api/users', { user: $('#nu-name').value.trim(), password: $('#nu-pass').value, role: $('#nu-role').value });
+    if (r.first) { alert('Erstes Konto angelegt (admin). Ab jetzt gilt Login-Pflicht – bitte anmelden.'); location.href = '/login?next=/admin'; return; }
+    m.textContent = 'angelegt ✓';
+    loadUsers();
+  } catch (e) { m.textContent = 'Fehler: ' + e.message; }
+}
+async function setUserRole(name, role) {
+  try { await put('/api/users/' + encodeURIComponent(name), { role }); } catch (e) { alert('Fehler: ' + e.message); }
+  loadUsers();
+}
+async function resetUserPw(name) {
+  const pw = prompt(`Neues Passwort für „${name}“ (min. 6 Zeichen):`);
+  if (!pw) return;
+  try {
+    await put('/api/users/' + encodeURIComponent(name), { password: pw });
+    alert('Passwort gesetzt ✓ (bestehende Anmeldungen dieses Kontos sind damit beendet)');
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+async function resetLegacyPw() {
+  const pw = prompt('Neues Passwort für den Notfall-Login (min. 6 Zeichen):');
+  if (!pw) return;
+  try { await put('/api/config', { web_password: pw }); alert('Passwort gesetzt ✓'); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+async function adoptLegacy() {
+  if (!confirm('Den Notfall-Login als erstes Admin-Konto übernehmen? Name und Passwort bleiben gleich; ab dann gilt die Benutzerverwaltung.')) return;
+  try { await post('/api/users/adopt'); loadUsers(); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+async function signoutUser(name) {
+  if (!confirm(`Alle Geräte von „${name}“ abmelden? (Passwort bleibt gleich)`)) return;
+  try { await post('/api/users/' + encodeURIComponent(name) + '/signout'); alert('Abgemeldet ✓'); } catch (e) { alert('Fehler: ' + e.message); }
+}
+async function delUser(name) {
+  if (!confirm(`Benutzer „${name}“ entfernen?`)) return;
+  try { await api('/api/users/' + encodeURIComponent(name), { method: 'DELETE' }); } catch (e) { alert(e.message); }
+  loadUsers();
+}
+async function saveConfig() {
+  const body = {};
+  const v = id => ($('#' + id)?.value ?? '').trim();
+  if (cfgSub === 'control4') {
+    if (v('c-user')) body.c4_user = v('c-user');
+    if (v('c-pass')) body.c4_password = v('c-pass');
+    if (v('c-ip')) body.c4_ip = v('c-ip');
+    if (v('c-scanmin') !== '') body.scan_min = parseInt(v('c-scanmin'), 10) || 0;
+  } else if (cfgSub === 'access') {
+    if ($('#c-webuser')) body.web_user = v('c-webuser');        // darf geleert werden
+    if (v('c-webpass')) body.web_password = v('c-webpass');
+    if (v('c-host')) body.host = v('c-host');
+    if (v('c-port')) body.port = parseInt(v('c-port'), 10);
+  }
+  const r = await put('/api/config', body);
+  $('#c-msg').textContent = r.restart_required ? 'Gespeichert ✓ – Neustart nötig' : 'Gespeichert ✓';
+  clearTimeout(cfgSavedTimer); cfgSavedTimer = setTimeout(loadConfig, 2500);
+}
+
+// ---- Kameras ---------------------------------------------------------------------
+async function loadCamAdmin() {
+  const cams = await api('/api/cameras/config');
+  $('#camPanel').innerHTML = `
+    <div class="card"><div class="row">
+      <b>Kamera anlegen</b>
+      <input type="text" id="nc-name" placeholder="Name (z. B. Hofkamera)" style="width:180px">
+      <input type="text" id="nc-url" placeholder="rtsp://ip/live.sdp" style="flex:1 1 220px">
+      <input type="text" id="nc-user" placeholder="Benutzer" style="width:130px">
+      <input type="password" id="nc-pass" placeholder="Passwort" style="width:130px">
+      <button class="act primary" onclick="addCam()">Anlegen</button>
+      <span class="hint" id="nc-msg"></span>
+    </div></div>` + cams.map(c => `
+    <div class="card" style="margin-top:10px">
+      <div class="row"><b>${esc(c.name)}</b>
+        <span class="hint">${esc(c.room)} · #${c.id}${c.manual ? ' · manuell' : ''}</span></div>
+      <div class="row">
+        <select id="cm-${c.id}" onchange="saveCam(${c.id})" style="width:200px">
+          <option value="snapshot" ${c.mode === 'snapshot' ? 'selected' : ''}>Snapshot (Standbild)</option>
+          <option value="rtsp" ${c.mode === 'rtsp' ? 'selected' : ''}>RTSP-Livestream</option>
+        </select>
+        <input type="text" id="cu-${c.id}" value="${esc(c.rtsp_url)}" placeholder="rtsp://192.168.1.60/live.sdp" style="flex:1 1 260px">
+      </div>
+      <div class="row">
+        <input type="text" id="cU-${c.id}" value="${esc(c.rtsp_user)}" placeholder="Benutzer" style="width:150px">
+        <input type="password" id="cp-${c.id}" placeholder="${c.pass_set ? 'gesetzt – leer lassen = unverändert' : 'Passwort'}" autocomplete="new-password" style="width:190px">
+        <button class="act" onclick="saveCam(${c.id})">Speichern</button>
+        <button class="act" onclick="testCam(${c.id})">Testen</button>
+        ${c.manual ? `<button class="act danger" onclick="delCam(${c.id})">Löschen</button>` : ''}
+        <span class="hint" id="cmsg-${c.id}"></span>
+      </div>
+    </div>`).join('') +
+    `<p class="hint" style="margin:14px 0 0">Zugangsdaten liegen lokal in data/cameras.json und werden nie an den Browser zurückgegeben.
+      RTSP-Modus nutzt den Livestream direkt von der Kamera („Testen“ prüft die Verbindung).</p>`;
+}
+async function addCam() {
+  const msg = $('#nc-msg');
+  try {
+    const r = await post('/api/cameras/manual', {
+      name: $('#nc-name').value, rtsp_url: $('#nc-url').value,
+      rtsp_user: $('#nc-user').value, rtsp_pass: $('#nc-pass').value });
+    msg.textContent = `angelegt ✓ (#${r.id})`;
+    loadCamAdmin();
+  } catch (e) { msg.textContent = 'Fehler: ' + e.message; }
+}
+async function delCam(id) {
+  if (!confirm('Kamera entfernen?')) return;
+  await api('/api/cameras/manual/' + id, { method: 'DELETE' });
+  loadCamAdmin();
+}
+async function saveCam(id) {
+  const body = { mode: $('#cm-' + id).value, rtsp_url: $('#cu-' + id).value, rtsp_user: $('#cU-' + id).value };
+  if ($('#cp-' + id).value) body.rtsp_pass = $('#cp-' + id).value;
+  await put('/api/cameras/config/' + id, body);
+  $('#cmsg-' + id).textContent = 'gespeichert ✓';
+  setTimeout(() => { $('#cmsg-' + id).textContent = ''; }, 2500);
+}
+async function testCam(id) {
+  const m = $('#cmsg-' + id);
+  m.textContent = 'teste …';
+  try {
+    const body = { rtsp_url: $('#cu-' + id).value, rtsp_user: $('#cU-' + id).value };
+    if ($('#cp-' + id).value) body.rtsp_pass = $('#cp-' + id).value;
+    const r = await post('/api/cameras/' + id + '/test', body);
+    m.textContent = (r.ok ? '✓ ' : '✗ ') + r.result + (r.hint ? ' – ' + r.hint : '');
+  } catch (e) { m.textContent = 'Fehler: ' + e.message; }
+}
+async function saveTheme(v) {
+  await put('/api/me/prefs', { theme: v });
+  try { localStorage.setItem('c4theme', v); } catch { }
+  const m = $('#c-msg'); if (m) m.textContent = 'Theme gespeichert ✓ (gilt beim nächsten Öffnen der Bedienoberfläche)';
+}
+async function scanNow() {
+  const m = $('#scan-msg'); m.textContent = 'scannt …';
+  try {
+    const r = await post('/api/scan');
+    m.textContent = `✓ ${r.rooms} Räume, ${r.devices} Geräte${r.new_devices ? `, ${r.new_devices} NEU` : ''}, ${r.ws_items} Push-Abos`;
+  } catch (e) { m.textContent = 'Fehler: ' + e.message; }
+}
+
+// ---- Räume ------------------------------------------------------------------------
+// Lautstärke-Aktualisierung je Raum: direkt (Ereignis) / nachlesen / polling (orange) / – (kein Lautstärke-Gerät)
+function volModeHtml(m) {
+  if (!m || m.kind === 'none') return '<span class="hint">–</span>';
+  const out = m.output ? ` · Ausgang ${m.output}${m.check ? ' (' + m.check + ')' : ''}` : '';
+  const why = m.why ? `<div class="hint">${esc(m.why)}</div>` : '';
+  return { direkt: `<span class="tag ok">direkt</span>${out}`, nachlesen: `<span class="tag">nachlesen</span>${out}${why}`,
+           polling: `<span class="tag warn">nur Polling</span>${why}` }[m.kind] || esc(m.kind);
+}
+async function loadRoomAdmin() {
+  const [rooms, vm] = await Promise.all([api('/api/rooms'), api('/api/state/rooms').catch(() => ({}))]);
+  const floors = [];
+  for (const r of rooms) {
+    let g = floors.find(x => x.floor === r.floor);
+    if (!g) { g = { floor: r.floor, items: [] }; floors.push(g); }
+    g.items.push(r);
+  }
+  $('#roomsPanel').innerHTML = `
+    <div class="panel">
+      <h2 class="sec">Räume – Sichtbarkeit</h2>
+      <p class="hint" style="margin:0 0 12px">Vorauswahl = Composer-Einstellung („roomHidden/tempHidden“). Die Schalter speichern sofort.
+        Lieblingsräume legt jeder Benutzer selbst fest (Stern in der Raumliste der Bedienoberfläche).</p>
+      <div class="scroll"><table>
+        <tr><th>Raum</th><th>Ebene</th><th>sichtbar</th><th>Lautstärke</th><th>Push-Quellen</th></tr>
+        ${floors.map(g => g.items.map(r => `<tr data-id="${r.id}" class="${(vm[r.id] || {}).kind === 'polling' ? 'poll' : ''}">
+          <td>${esc(r.name)}${r.hidden ? ' <span class="tag" title="in Composer als versteckt markiert">Composer: versteckt</span>' : ''}</td>
+          <td>${esc(r.floor)}</td>
+          <td><label class="sw"><input type="checkbox" class="r-enabled" ${r.enabled ? 'checked' : ''} onchange="saveRoom(${r.id}, this)"><i></i></label></td>
+          <td class="small">${volModeHtml(vm[r.id])}</td>
+          <td><button class="act" onclick="roomPush(${r.id}, this)">▸ anzeigen</button></td>
+        </tr><tr class="pushrow" id="push-${r.id}" hidden><td colspan="5"></td></tr>`).join('')).join('')}
+      </table></div>
+      <p class="hint" style="margin:10px 0 0"><span class="tag warn">nur Polling</span> = das Lautstärke-Gerät meldet nichts →
+        die Oberfläche sieht Änderungen erst beim nächsten Abfragen (5–15 s). „nachlesen" = Ereignis kommt, der Raum wird dann gelesen.</p>
+    </div>`;
+}
+// Push-Quellen eines Raums: Quelle, Lautstärke-Endpunkt (direkt/nachlesen), Pfade, letzte Ereignisse (nur lesend)
+async function roomPush(id, btn) {
+  const row = $('#push-' + id), cell = row.firstElementChild;
+  if (!row.hidden) { row.hidden = true; btn.textContent = '▸ anzeigen'; return; }
+  row.hidden = false; btn.textContent = '▾ ausblenden'; cell.innerHTML = '<span class="hint">lese Raum …</span>';
+  try {
+    const d = await api(`/api/rooms/${id}/push`);
+    const dev = x => x ? `<b>${esc(x.name || '?')}</b> <span class="hint">#${x.id}${x.proxy ? ' · ' + esc(x.proxy) : ''}</span>` : '<span class="hint">–</span>';
+    const ago = t => t ? Math.max(0, Math.round(Date.now() / 1000 - t)) + ' s' : '';
+    const chain = p => p && p.length ? p.map(x => `${dev(x)} <span class="hint">(ein ${x.in || '–'} · aus ${x.out || '–'})</span>`).join(' → ') : '<span class="hint">– (Raum aus)</span>';
+    const v = d.volume;
+    cell.innerHTML = `<div class="pushbox">
+      <div><span class="hint">Status</span> ${d.on ? '<b>an</b>' : 'aus'} · Push ${d.push ? '✓' : '<span style="color:var(--warn)">aus – Abfrage</span>'}
+        · Raum an/aus über ${d.ui_agent ? dev(d.ui_agent) : '<span class="hint">UI-Agent noch nicht gesehen</span>'}</div>
+      <div><span class="hint">Quelle</span> ${dev(d.source)} <span class="hint">– Titel/Play-Pause per Ereignis dieses Geräts, Quellwechsel per Raum-Ereignis bzw. alle 5 s</span></div>
+      <div><span class="hint">Lautstärke / Stumm</span> ${v ? `${dev(v)} · <b>${{ direkt: 'direkt aus Ereignis', nachlesen: 'Raum nachlesen', polling: 'nur Polling' }[v.mode] || v.mode}${v.output ? ` (Ausgang ${v.output}${v.check ? ', ' + v.check : ''})` : ''}</b>
+        ${v.why ? `<span class="hint">– ${esc(v.why)}</span>` : ''}
+        ${v.shared_with && v.shared_with.length ? `<span class="hint">(auch Räume ${v.shared_with.join(', ')})</span>` : ''}
+        ${v.at ? `<span class="hint">· zuletzt ${v.volume ?? ''}${v.muted ? ' stumm' : ''} vor ${ago(v.at)}</span>` : '<span class="hint">· noch kein Ereignis</span>'}`
+        : '<span class="hint">kein Lautstärke-Gerät bekannt (Raum noch nie an gesehen)</span>'}</div>
+      <div><span class="hint">Laut Composer</span> ${Object.keys(d.static || {}).length ? Object.entries(d.static).map(([k, l]) =>
+        `${{ volume: 'Lautstärke', video_volume: 'Lautstärke Sehen', audio_endpoint: 'Audio-Endpunkt', video_endpoint: 'Video-Endpunkt',
+             video_audio_endpoint: 'Ton beim Sehen' }[k] || k}: ${l.map(dev).join(', ')}`).join(' · ') : '<span class="hint">keine Endpunkt-Bindungen</span>'}</div>
+      <div><span class="hint">Audio-Pfad</span> ${chain(d.paths.audio_path)}</div>
+      ${d.paths.video_path.length ? `<div><span class="hint">Video-Pfad</span> ${chain(d.paths.video_path)}</div>` : ''}
+      ${d.paths.video_audio_path.length ? `<div><span class="hint">Ton beim Sehen</span> ${chain(d.paths.video_audio_path)}</div>` : ''}
+      <div><span class="hint">Letzte Ereignisse</span> ${d.log.length ? d.log.map(e => `<div class="small">vor ${ago(e.t)} · ${esc(e.name || '#' + e.dev)}: ${esc(e.what)}</div>`).join('')
+        : '<span class="hint">seit dem Start noch keine</span>'}</div></div>`;
+  } catch (e) { cell.innerHTML = '<span class="hint">Fehler: ' + esc(e.message) + '</span>'; }
+}
+async function saveRoom(id, el) {
+  const tr = el.closest('tr');
+  el.disabled = true;
+  try {
+    await put('/api/rooms/' + id, { enabled: $('.r-enabled', tr).checked });
+  } finally { el.disabled = false; }
+}
+
+// ---- Projektdaten (Baum) -----------------------------------------------------------
+let treeData = null, treeFilter = '', treeSel = null;
+const collapsed = { floors: new Set(), rooms: new Set() };   // Auf-/Zuklapp-Merker
+const devIcon = t => ic(({ light: 'light_on', blind: 'blind_open', thermostat: 'thermostat', media: 'music',
+  contact: 'window_closed', motion: 'motion', camera: 'camera' })[t] || 'gear', 16);
+const toggleSet = (s, k) => s.has(k) ? s.delete(k) : s.add(k);
+
+async function loadTree() {
+  treeData = await api('/api/tree');
+  renderTree();
+}
+
+function renderTree() {
+  $('#t-tree').innerHTML = `
+    <div class="treewrap">
+      <div class="panel">
+        <input type="search" id="treeq" placeholder="Gerät / Raum / Ebene suchen …" value="${esc(treeFilter)}"
+               oninput="treeFilter=this.value;renderTreeList()" style="width:100%">
+        <div id="treelist" class="treelist"></div>
+      </div>
+      <div class="panel" id="devprops"><p class="muted">Links ein Gerät oder Raum auswählen, um alle Properties live vom Director zu sehen.</p></div>
+    </div>`;
+  renderTreeList();
+}
+
+function renderTreeList() {
+  const q = treeFilter.trim().toLowerCase();
+  const searching = !!q;   // bei Suche alles aufklappen
+  let html = '';
+  for (const [floor, rooms] of Object.entries(treeData.floors)) {
+    const roomsHtml = rooms.filter(r => !q || r.name.toLowerCase().includes(q) || floor.toLowerCase().includes(q)
+      || r.devices.some(d => (d.name + ' ' + (d.proxy || '') + ' ' + (d.note || '')).toLowerCase().includes(q)))
+      .map(r => {
+        const devs = r.devices.filter(d => !q || r.name.toLowerCase().includes(q) || floor.toLowerCase().includes(q)
+          || (d.name + ' ' + (d.proxy || '') + ' ' + (d.type || '')).toLowerCase().includes(q));
+        const roomOpen = searching || !collapsed.rooms.has(r.id);
+        return `<button class="troom" onclick="toggleSet(collapsed.rooms,${r.id});renderTreeList()">
+            <span class="tw">${roomOpen ? '▾' : '▸'}</span> ${esc(r.name)} ${r.favorite ? '★' : ''}
+            <span class="hint">#${r.id}${r.enabled ? '' : ' · ausgeblendet'} · ${r.devices.length} Geräte</span></button>` +
+          (roomOpen ? `<div style="padding-left:14px">` + devs.map(d => `<button class="tdev${treeSel === d.id ? ' sel' : ''}" onclick="showDev(${d.id})">
+            ${devIcon(d.type)} ${esc(d.name)} <span class="hint">#${d.id}</span></button>`).join('') + `</div>` : '');
+      }).join('');
+    if (roomsHtml) {
+      const floorOpen = searching || !collapsed.floors.has(floor);
+      html += `<button class="tflo" onclick="toggleSet(collapsed.floors,'${esc(floor)}');renderTreeList()">
+          <span class="tw">${floorOpen ? '▾' : '▸'}</span> ${esc(floor)}</button>` +
+        (floorOpen ? `<div style="padding-left:10px">${roomsHtml}</div>` : '');
+    }
+  }
+  $('#treelist').innerHTML = html || '<p class="muted">nichts gefunden</p>';
+}
+
+const kvTable = (obj, skip = []) => !obj ? '<p class="muted">–</p>' :
+  `<table><tbody>${Object.entries(obj)
+    .filter(([k]) => !skip.includes(k) && typeof obj[k] !== 'object')
+    .map(([k, v]) => `<tr><th style="width:40%">${esc(k)}</th><td>${esc(String(v))}</td></tr>`).join('')}</tbody></table>`;
+
+async function showDev(id) {
+  treeSel = id;
+  document.querySelectorAll('.tdev').forEach(b => b.classList.toggle('sel', b.getAttribute('onclick') === `showDev(${id})`));
+  $('#devprops').innerHTML = '<p class="muted">lade …</p>';
+  const d = await api(`/api/devices/${id}/inspect`);
+  const invd = d.inventory || {};
+  $('#devprops').innerHTML = `
+    <div class="row" style="justify-content:space-between">
+      <h2 class="sec" style="margin:0">${devIcon(invd.type)} ${esc(invd.name || invd.room || '?')} <span class="muted">#${id}</span></h2>
+      <button class="act" onclick="showDev(${id})">↻ neu laden</button>
+    </div>
+    <div class="sect"><h2 class="sec">Inventar (Bridge)</h2>${kvTable(invd)}</div>
+    <div class="sect"><h2 class="sec">Director-Item-Info</h2>${kvTable(d.item_info, ['data'])}</div>
+    <div class="sect"><h2 class="sec">Variablen (live)</h2>
+    ${d.variables && !d.variables.error
+      ? (Array.isArray(d.variables)
+          ? kvTable(Object.fromEntries(d.variables.map(v => [v.varName ?? v.name ?? '?', v.value ?? v])))
+          : kvTable(d.variables))
+      : `<p class="muted">${esc(String(d.variables?.error || 'keine'))}</p>`}</div>`;
+}
+
+async function wsAction(a) {
+  const m = $('#ws-msg'); if (m) m.textContent = '…';
+  try {
+    const r = await post('/api/ws/' + a);
+    if (m) m.textContent = a === 'restart' ? 'Reconnect gestartet ✓' : `wieder abonniert: ${r.subscribed_items} Items ✓`;
+  } catch (e) { if (m) m.textContent = 'Fehler: ' + e.message; }
+  setTimeout(loadWsBox, 2500);
+}
+
+loadStatus(); setInterval(() => { if (current === 'status') loadStatus(); }, 5000);
+</script>
+</body>
+</html>
