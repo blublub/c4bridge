@@ -773,6 +773,11 @@ function renderConfigTab() {
               <span class="hint">Stimmproben in bin/tts/pocket/voices</span></div>
           </div>
           <div class="frm" id="t-qwen" hidden>
+            <label class="fl" for="t-qapi">Vorlese-API</label>
+            <div class="ctr"><input type="text" id="t-qapi" style="width:420px" placeholder="leer = eigener Dienst · z. B. http://127.0.0.1:47532/v1">
+              <span class="hint">OpenAI-Format (/audio/speech), z. B. NovaBird Helper – dann startet die Bridge keinen eigenen Qwen-Dienst</span></div>
+            <label class="fl" for="t-qkey">API-Schlüssel</label>
+            <div class="ctr"><input type="password" id="t-qkey" style="width:300px" autocomplete="off" placeholder="kein Schlüssel gespeichert"></div>
             <label class="fl" for="t-qdir">Qwen3-Ordner</label>
             <div class="ctr"><input type="text" id="t-qdir" style="width:420px" placeholder="leer = Standard bin/tts/qwen3 (mit .venv und model-base)"></div>
             <label class="fl" for="t-qmodel">Qwen3-Modell</label>
@@ -989,6 +994,8 @@ async function loadVoice() {
       $('#t-eng').value = tt.engine || 'piper'; ttsEng();
       api('/api/voice/tts/pocket-voices').then(l => { const cur = (tt.pocket || {}).voice || 'eponine';
         $('#t-pvoice').innerHTML = l.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join(''); }).catch(() => { });
+      $('#t-qapi').value = tq.api_url || ''; $('#t-qkey').value = '';
+      $('#t-qkey').placeholder = tq.api_key_set ? 'gespeichert – leer lassen zum Behalten' : 'kein Schlüssel gespeichert';
       $('#t-qdir').value = tq.dir || ''; $('#t-qtext').value = tq.ref_text || ''; $('#t-qmodel').value = tq.model || 'model-base';
       api('/api/voice/tts/qwen-voices').then(l => { const cur = tq.ref || 'qwen_ref_ruhig.wav';
         if (!l.some(v => v.file === cur)) l.push({ file: cur, name: cur, text: '' });
@@ -1051,8 +1058,8 @@ async function loadVoiceBox() {
         <span class="dot ${!tts || !tts.enabled ? '' : (tts.ready ? 'ok' : 'wait')}" style="margin-right:6px${!tts || !tts.enabled ? ';background:var(--muted)' : ''}"></span>
         <b style="flex:0 0 250px">Sprachausgabe · ${tts ? ({ qwen3: 'Qwen3-TTS', pocket: 'Pocket TTS', piper: 'Piper' }[tts.engine] || esc(tts.engine)) : '—'}</b>
         <span class="hint">${!tts ? '—' : !tts.enabled ? 'aus' : esc(tts.voice || '') + ' · ' + (tts.ready
-          ? (tts.engine === 'qwen3' ? 'Dienst läuft (Port ' + tts.port + ', Grafikkarte, ' + (tts.model === 'model-base-small' ? '0.6B' : '1.7B') + ')' : tts.engine === 'pocket' ? 'geladen (Grafikkarte)' : 'bereit (CPU)')
-          : (tts.engine === 'qwen3' ? 'Dienst startet …' : tts.engine === 'pocket' ? 'lädt beim ersten Satz' : 'Stimme fehlt'))}</span>
+          ? (tts.engine === 'qwen3' ? (tts.api ? 'über Vorlese-API (' + tts.api + ')' : 'Dienst läuft (Port ' + tts.port + ', Grafikkarte, ' + (tts.model === 'model-base-small' ? '0.6B' : '1.7B') + ')') : tts.engine === 'pocket' ? 'geladen (Grafikkarte)' : 'bereit (CPU)')
+          : (tts.engine === 'qwen3' ? (tts.api ? 'Vorlese-API antwortet nicht (Adresse/Schlüssel prüfen)' : 'Dienst startet …') : tts.engine === 'pocket' ? 'lädt beim ersten Satz' : 'Stimme fehlt'))}</span>
       </div>`}` : '<span class="hint"><span class="dot bad"></span> Sprachdienst c4voice gestoppt</span>';
     box.innerHTML = `
       <div class="row"><span class="dot ${s.running ? 'ok' : 'bad'}"></span><b>Sprachdienst c4voice ${s.running ? 'läuft' : 'gestoppt'}</b>
@@ -1090,8 +1097,8 @@ async function loadVoiceBox() {
         <span class="dot ${!tts || !tts.enabled ? '' : (tts.ready ? 'ok' : 'wait')}" style="margin-right:6px${!tts || !tts.enabled ? ';background:var(--muted)' : ''}"></span>
         <b style="flex:0 0 250px">Sprachausgabe · ${tts ? ({ qwen3: 'Qwen3-TTS', pocket: 'Pocket TTS', piper: 'Piper' }[tts.engine] || esc(tts.engine)) : '—'}</b>
         <span class="hint">${!tts ? '—' : !tts.enabled ? 'aus' : esc(tts.voice || '') + ' · ' + (tts.ready
-          ? (tts.engine === 'qwen3' ? 'Dienst läuft (Port ' + tts.port + ', Grafikkarte, ' + (tts.model === 'model-base-small' ? '0.6B' : '1.7B') + ')' : tts.engine === 'pocket' ? 'geladen (Grafikkarte)' : 'bereit (CPU)')
-          : (tts.engine === 'qwen3' ? 'Dienst startet …' : tts.engine === 'pocket' ? 'lädt beim ersten Satz' : 'Stimme fehlt'))}</span>
+          ? (tts.engine === 'qwen3' ? (tts.api ? 'über Vorlese-API (' + tts.api + ')' : 'Dienst läuft (Port ' + tts.port + ', Grafikkarte, ' + (tts.model === 'model-base-small' ? '0.6B' : '1.7B') + ')') : tts.engine === 'pocket' ? 'geladen (Grafikkarte)' : 'bereit (CPU)')
+          : (tts.engine === 'qwen3' ? (tts.api ? 'Vorlese-API antwortet nicht (Adresse/Schlüssel prüfen)' : 'Dienst startet …') : tts.engine === 'pocket' ? 'lädt beim ersten Satz' : 'Stimme fehlt'))}</span>
       </div>
       <div class="row" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
         <span class="spacer"></span>
@@ -1392,7 +1399,7 @@ async function saveVoiceConfig() {
       answer_llm: { url: $('#a-llmurl').value.trim(), model: $('#a-llmmodel').value.trim(),
                     keep_alive_min: $('#a-llmka').value, num_ctx: $('#a-llmctx').value } },
     tts: { enabled: $('#t-enabled').checked, followup: $('#t-followup').checked, mode: $('#t-mode').value,
-      engine: $('#t-eng').value, ...($('#t-pvoice').value ? { pocket: { voice: $('#t-pvoice').value } } : {}), qwen: { dir: $('#t-qdir').value.trim(), model: $('#t-qmodel').value, ref: $('#t-qref').value.trim(), ref_text: $('#t-qtext').value.trim() },
+      engine: $('#t-eng').value, ...($('#t-pvoice').value ? { pocket: { voice: $('#t-pvoice').value } } : {}), qwen: { api_url: $('#t-qapi').value.trim(), ...($('#t-qkey').value.trim() ? { api_key: $('#t-qkey').value.trim() } : {}), dir: $('#t-qdir').value.trim(), model: $('#t-qmodel').value, ref: $('#t-qref').value.trim(), ref_text: $('#t-qtext').value.trim() },
       speed: +$('#t-speed').value, volume: +$('#t-volume').value,
       ...($('#t-voice').value ? { voice: $('#t-voice').value } : {}) } };
   // c4voice liest diese Werte nur beim Start (Spracherkennung, Wake-Word, Port, Bridge-Adresse) – alles andere sofort

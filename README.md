@@ -94,6 +94,7 @@ Everything runs inside your home network. No cloud services are needed except th
   - Simple German commands (*"Pause"*, *"lauter"*) work without the LLM.
 - Speech output:
   - **Qwen3-TTS** (GPU, **recommended**: much more natural than Piper). It clones the voice from a 5–10 s reference clip; two generated sample voices are included.
+  - Qwen3-TTS can also come from an OpenAI-compatible speech API (`/v1/audio/speech`, for example another local app that already runs it). The bridge then starts no TTS service of its own and saves the VRAM. The LLM URL can likewise point at any Ollama.
   - Or Piper (CPU), lightweight. It is also the fallback.
 - Microphones:
   - The browser microphone (`/voicetest`).

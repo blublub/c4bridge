@@ -452,6 +452,59 @@ class Speaker:
     def _qwen_ok(self, port: int, timeout: float = 0.5) -> bool:
         return self._qwen_health(port, timeout) is not None
 
+    # ---- Qwen3 über eine OpenAI-kompatible Vorlese-API (z. B. NovaBird Helper): kein eigener Dienst, kein eigener Grafikspeicher
+    @staticmethod
+    def _qwen_api(q: dict) -> str:
+        return str(q.get("api_url") or "").strip().rstrip("/")
+
+    @staticmethod
+    def _qwen_api_req(q: dict, path: str, body: dict | None = None):
+        import urllib.request
+        h = {"Authorization": f"Bearer {q.get('api_key') or ''}"}
+        if body is not None:
+            h["Content-Type"] = "application/json"
+        return urllib.request.Request(Speaker._qwen_api(q) + path,
+                                      json.dumps(body).encode("utf-8") if body is not None else None, h)
+
+    @staticmethod
+    def _qwen_api_ok(q: dict, timeout: float = 1.0) -> bool:
+        import urllib.request
+        try:
+            with urllib.request.urlopen(Speaker._qwen_api_req(q, "/audio/voices"), timeout=timeout) as r:
+                return r.status == 200
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _qwen_api_wav(self, text: str, q: dict) -> bytes | None:
+        """POST <api>/audio/speech – Stimme = Name der Vorlage (qwen_ref_<name>.wav). Kennt die API die Stimme
+        nicht (400), einmal ohne Stimme (deren Standardstimme) statt gleich Piper."""
+        import urllib.error
+        import urllib.request
+        ref, _ = qwen_ref(q)
+        voice = ref.stem[len("qwen_ref_"):] if ref.stem.startswith("qwen_ref_") else ref.stem
+        body = {"model": "qwen3-tts", "input": text, "voice": voice, "response_format": "wav",
+                "language": q.get("lang") or ("english" if is_en() else "german")}
+        timeout = max(20.0, len(text) / 6)        # Kaltstart der API ~7 s, Anfragen warten dort in einer Schlange
+        for attempt in (0, 1):
+            try:
+                with urllib.request.urlopen(self._qwen_api_req(q, "/audio/speech", body), timeout=timeout) as r:
+                    used = r.headers.get("X-Voice")
+                    if used and used != body.get("voice"):
+                        log("tts_api_voice", wanted=voice, used=used)
+                    return r.read()
+            except urllib.error.HTTPError as e:
+                msg = e.read()[:200].decode("utf-8", "replace")
+                if e.code == 400 and attempt == 0 and "voice" in body:
+                    log("tts_api_voice_unknown", voice=voice, error=msg)
+                    body.pop("voice")
+                    continue
+                log("tts_api_error", status=e.code, error=msg)
+                return None
+            except Exception as e:  # noqa: BLE001
+                log("tts_api_error", error=str(e)[:200])
+                return None
+        return None
+
     @staticmethod
     def _qwen_health(port: int, timeout: float = 0.5) -> dict | None:
         """Antwort von /health ({"model": …}) – None, wenn der Dienst (noch) nicht bereit ist."""
@@ -471,6 +524,8 @@ class Speaker:
         """Dienst starten, falls er nicht läuft (läuft er schon – z. B. von einem früheren c4voice –, wird er genutzt)."""
         import subprocess
         q = self._qwen_cfg(tcfg)
+        if self._qwen_api(q):
+            return
         port = int(q["port"])
         if self._qwen_ok(port) or (self._qwen_proc and self._qwen_proc.poll() is None) or _port_owner(port):
             return
@@ -503,6 +558,8 @@ class Speaker:
         """WAV vom Qwen-Dienst – oder None (startet noch / Fehler / zu langsam → Piper)."""
         import urllib.request
         q = self._qwen_cfg(tcfg)
+        if self._qwen_api(q):
+            return self._qwen_api_wav(text, q)
         port = int(q["port"])
         h = self._qwen_health(port, 0.3)
         if h is not None and h.get("model", "model-base") != (q.get("model") or "model-base"):
@@ -605,9 +662,10 @@ class Speaker:
         """Text → WAV-Bytes (mono). engine pocket / qwen3 → das Modell, sonst und als Rückfall Piper."""
         # nicht gewähltes Modell beenden → Grafikspeicher frei (Wechsel im Admin)
         eng = tcfg.get("engine") or "piper"
-        if eng != getattr(self, "_eng_last", None):   # Wechsel (oder erster Satz): Qwen-Dienst über den Port beenden –
-            self._eng_last = eng                        # er kann noch von einem früheren c4voice stammen
-            if eng != "qwen3":
+        api = bool(self._qwen_api(self._qwen_cfg(tcfg)))
+        if (eng, api) != getattr(self, "_eng_last", None):   # Wechsel (oder erster Satz): Qwen-Dienst über den Port beenden –
+            self._eng_last = (eng, api)                        # er kann noch von einem früheren c4voice stammen
+            if eng != "qwen3" or api:                          # über die API: eigener Dienst belegt nur Grafikspeicher
                 self.qwen_stop(tcfg)
         lp = getattr(self, "_pocket_proc", None)
         if tcfg.get("engine") != "pocket" and lp is not None and lp.poll() is None:
@@ -3375,8 +3433,12 @@ async def tts_state(tcfg: dict) -> dict:
     sp = Speaker.current
     if eng == "qwen3":
         q = Speaker._qwen_cfg(tcfg)
-        out.update(voice=str(q.get("ref") or ""), port=int(q["port"]), model=str(q.get("model") or "model-base"),
-                   ready=bool(sp and await asyncio.to_thread(sp._qwen_ok, int(q["port"]), 0.5)))
+        if Speaker._qwen_api(q):
+            out.update(voice=str(q.get("ref") or ""), api=Speaker._qwen_api(q),
+                       ready=await asyncio.to_thread(Speaker._qwen_api_ok, q, 1.0))
+        else:
+            out.update(voice=str(q.get("ref") or ""), port=int(q["port"]), model=str(q.get("model") or "model-base"),
+                       ready=bool(sp and await asyncio.to_thread(sp._qwen_ok, int(q["port"]), 0.5)))
     elif eng == "pocket":
         p = getattr(sp, "_pocket_proc", None) if sp else None
         out.update(voice=str((tcfg.get("pocket") or {}).get("voice") or "eponine"),
@@ -3843,7 +3905,7 @@ def main() -> None:
         threading.Thread(target=speaker.qwen_start, args=(_t,), daemon=True).start()
     if _t.get("enabled") and _t.get("engine") == "pocket":  # Dauerprozess laden + Grafikkarte aufwärmen (erster Satz)
         threading.Thread(target=speaker.wav, args=("Bereit.", _t), daemon=True).start()
-    elif _t.get("engine") != "qwen3":                       # übrig gebliebenen Qwen-Dienst beenden (Grafikspeicher)
+    elif _t.get("engine") != "qwen3" or Speaker._qwen_api(Speaker._qwen_cfg(_t)):   # übrig gebliebenen Qwen-Dienst beenden
         threading.Thread(target=speaker.qwen_stop, args=(_t,), daemon=True).start()
 
     @web.middleware

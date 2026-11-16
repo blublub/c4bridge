@@ -2163,7 +2163,11 @@ async def voice_package_install(name: str, body: dict | None = None):
 
 @app.get("/api/voice/config")
 async def get_voice_config():
-    c = _voice_cfg()
+    import copy
+    c = copy.deepcopy(_voice_cfg())
+    q = (c.get("tts") or {}).get("qwen") or {}
+    if "api_key" in q:                       # Schlüssel der Vorlese-API nie zurückgeben – nur, ob einer gespeichert ist
+        q["api_key_set"] = bool(q.pop("api_key"))
     c["lang"] = "en" if c.get("lang") == "en" else "de"
     if c["lang"] == "en":                    # Admin zeigt/ändert die Anweisungen der eingestellten Sprache
         c["prompts"] = c.get("prompts_en") or {}
@@ -2280,6 +2284,13 @@ async def put_voice_config(body: dict):
                 qo["model"] = q["model"]
             if q.get("lang") in ("german", "english", "french", "spanish", "italian", "portuguese"):   # Sprache der Ausgabe
                 qo["lang"] = q["lang"]
+            if isinstance(q.get("api_url"), str):           # Vorlese-API (OpenAI-Format, z. B. NovaBird Helper); leer = eigener Dienst
+                u = q["api_url"].strip().rstrip("/")
+                if u and not re.fullmatch(r"https?://[\w.\-\[\]:]+(/[\w.\-/]*)?", u):
+                    raise HTTPException(400, "Adresse der Vorlese-API ungültig (http://host:port/v1)")
+                qo["api_url"] = u[:200]
+            if isinstance(q.get("api_key"), str) and q["api_key"].strip():   # leer = gespeicherten Schlüssel behalten
+                qo["api_key"] = q["api_key"].strip()[:300]
             out["qwen"] = qo
         cur["tts"] = _voice_deep_merge(cur.get("tts") or {}, out)
     if isinstance(body.get("prompts"), dict):

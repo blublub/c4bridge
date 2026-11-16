@@ -26,6 +26,12 @@
     ['Qwen3-TTS (Grafikkarte, natürlicher)', 'Qwen3-TTS (GPU, more natural)'], ['Qwen3-Ordner', 'Qwen3 folder'],
     ['Pocket-Stimme', 'Pocket voice'], ['fällt das Modell aus, spricht Piper', 'if the model fails, Piper speaks'], ['Stimmproben in bin/tts/pocket/voices', 'Voice samples in bin/tts/pocket/voices'],
     ['Stimmvorlage', 'Voice sample'], ['Text der Vorlage', 'Sample transcript'],
+    ['Vorlese-API', 'Speech API'], ['API-Schlüssel', 'API key'], ['kein Schlüssel gespeichert', 'no key stored'],
+    ['gespeichert – leer lassen zum Behalten', 'stored – leave empty to keep'],
+    ['leer = eigener Dienst · z. B. http://127.0.0.1:47532/v1', 'empty = own service · e.g. http://127.0.0.1:47532/v1'],
+    ['OpenAI-Format (/audio/speech), z. B. NovaBird Helper – dann startet die Bridge keinen eigenen Qwen-Dienst',
+      'OpenAI format (/audio/speech), e.g. NovaBird Helper – the bridge then starts no Qwen service of its own'],
+    ['Vorlese-API antwortet nicht (Adresse/Schlüssel prüfen)', 'speech API not responding (check address/key)'],
     ['Qwen3-TTS läuft als eigener Dienst (~1,5 GB Grafikspeicher); fällt er aus, spricht Piper', 'Qwen3-TTS runs as its own service (~1.5 GB VRAM); if it fails, Piper speaks'],
     ['Qwen3-Modell', 'Qwen3 model'],
     ['1.7B (beste Qualität, ~1,4 GB Grafikspeicher)', '1.7B (best quality, ~1.4 GB VRAM)'],
@@ -327,6 +333,7 @@
 
   // ---- ganze Meldungen mit Platzhaltern (BluOS-Hinweise vom Server) – vor den Teiltexten angewendet ------------
   const PRE = [
+    [/^über Vorlese-API \((.+)\)$/, 'via speech API ($1)'],
     [/^„(.+)“: Control4 kennt (.+?), der Player ist jetzt unter (\S+) erreichbar \(DHCP\?\) – Bridge nutzt (\S+)\.$/,
       '“$1”: Control4 knows $2, but the player is now reachable at $3 (DHCP?) – the bridge uses $4.'],
     [/^„(.+)“: MAC laut Control4 \((.+?)\) passt nicht, Player „(.+)“ über den Namen gefunden\.$/,
