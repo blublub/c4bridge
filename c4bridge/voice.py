@@ -475,17 +475,19 @@ class Speaker:
         except Exception:  # noqa: BLE001
             return False
 
-    def _qwen_api_wav(self, text: str, q: dict) -> bytes | None:
-        """POST <api>/audio/speech – Stimme = Name der Vorlage (qwen_ref_<name>.wav). Kennt die API die Stimme
-        nicht (400), einmal ohne Stimme (deren Standardstimme) statt gleich Piper."""
+    def _qwen_api_wav(self, text: str, q: dict, speed: float = 1.0) -> bytes | None:
+        """POST <api>/audio/speech – Stimme = Name der Vorlage (qwen_ref_<name>.wav), Tempo aus der Sprachausgabe.
+        Lehnt die API Tempo oder Stimme ab (400), ohne sie wiederholen (Normaltempo / ihre Standardstimme) statt Piper."""
         import urllib.error
         import urllib.request
         ref, _ = qwen_ref(q)
         voice = ref.stem[len("qwen_ref_"):] if ref.stem.startswith("qwen_ref_") else ref.stem
         body = {"model": "qwen3-tts", "input": text, "voice": voice, "response_format": "wav",
                 "language": q.get("lang") or ("english" if is_en() else "german")}
+        if abs(speed - 1.0) > 0.01:
+            body["speed"] = round(min(1.5, max(0.8, speed)), 2)
         timeout = max(20.0, len(text) / 6)        # Kaltstart der API ~7 s, Anfragen warten dort in einer Schlange
-        for attempt in (0, 1):
+        for attempt in (0, 1, 2):
             try:
                 with urllib.request.urlopen(self._qwen_api_req(q, "/audio/speech", body), timeout=timeout) as r:
                     used = r.headers.get("X-Voice")
@@ -494,7 +496,10 @@ class Speaker:
                     return r.read()
             except urllib.error.HTTPError as e:
                 msg = e.read()[:200].decode("utf-8", "replace")
-                if e.code == 400 and attempt == 0 and "voice" in body:
+                if e.code == 400 and "speed" in body:       # zuerst das Tempo weglassen (älterer Helper: nur 1.0)
+                    log("tts_api_speed_unsupported", speed=body.pop("speed"))
+                    continue
+                if e.code == 400 and "voice" in body:
                     log("tts_api_voice_unknown", voice=voice, error=msg)
                     body.pop("voice")
                     continue
@@ -559,7 +564,7 @@ class Speaker:
         import urllib.request
         q = self._qwen_cfg(tcfg)
         if self._qwen_api(q):
-            return self._qwen_api_wav(text, q)
+            return self._qwen_api_wav(text, q, float(tcfg.get("speed") or 1.0))
         port = int(q["port"])
         h = self._qwen_health(port, 0.3)
         if h is not None and h.get("model", "model-base") != (q.get("model") or "model-base"):
